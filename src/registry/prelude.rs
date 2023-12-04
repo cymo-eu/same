@@ -1,0 +1,45 @@
+use crate::registry::{SchemaId, SchemaReference, SchemaType, SchemaVersion, SubjectName};
+
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct SubjectVersion {
+    /// Name of the subject
+    pub subject: SubjectName,
+    /// Version of the returned schema
+    pub version: SchemaVersion,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Subject {
+    /// Name of the subject
+    pub subject: SubjectName,
+    /// Id of the schema
+    pub id: SchemaId,
+    /// Version of the schema
+    pub version: SchemaVersion,
+    /// The schema type
+    #[serde(rename = "schema_type", default)]
+    pub schema_type: SchemaType,
+    /// The schema
+    pub schema: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RegisterSchema {
+    /// The schema string
+    pub schema: String,
+    /// The schema type
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub schema_type: Option<SchemaType>,
+    /// The schema references
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub references: Vec<SchemaReference>,
+}
+
+/// Registered schema result
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct RegisteredSchema {
+    /// The schema id
+    pub id: SchemaId,
+}
