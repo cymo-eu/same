@@ -32,12 +32,12 @@ pub trait ContextRepository {
 /// On Windows, this is stored in `%APPDATA%/same/config`
 /// On MacOS, this is stored in `$HOME/Library/Application Support/same/config`
 ///
-struct LocalContextRepository {
+pub struct LocalContextRepository {
     cfg_file: PathBuf,
 }
 
 impl LocalContextRepository {
-    fn new() -> Self {
+    pub fn get() -> Self {
         let data_dir = dirs::data_dir().expect("Could not find data directory");
         let root = data_dir.join("same");
         std::fs::create_dir_all(&root).expect("Could not create config directory");
@@ -127,7 +127,6 @@ impl Config {
 
         if file_length == 0 {
             let default_config = Config::new();
-            dbg!(&default_config);
             serde_yaml::to_writer(&mut file, &default_config)
                 .map_err(|err| SameConfigError::SerializationError(err))?;
             return Ok(default_config);
@@ -173,12 +172,12 @@ impl Config {
 
 #[cfg(test)]
 mod tests {
-    use crate::context::{Authentication, SaslAuthentication, SchemaRegistryConfig, TlsAuthentication};
+    use crate::context::{Authentication, BasicAuth, BasicAuthConfig, SchemaRegistryConfig};
 
     use super::*;
 
     fn mk_temp_repo() -> LocalContextRepository {
-        let mut repo = LocalContextRepository::new();
+        let mut repo = LocalContextRepository::get();
         let tempdir = tempfile::tempdir().unwrap().into_path();
         repo.set_cfg_file(tempdir.join(CFG_FILE));
         repo
@@ -196,7 +195,7 @@ mod tests {
         let mut repo = mk_temp_repo();
         let context = Context {
             name: "data-land".into(),
-            registry: Some(data_land_registry()),
+            registry: data_land_registry(),
         };
         repo.set_context(context.clone()).unwrap();
         let result = repo.find_context(&"data-land".into());
@@ -208,7 +207,7 @@ mod tests {
         let mut repo = mk_temp_repo();
         let context = Context {
             name: "data-land".into(),
-            registry: Some(data_land_registry()),
+            registry: data_land_registry(),
         };
         repo.set_context(context.clone()).unwrap();
         let result = repo.find_context(&"data-land".into());
@@ -221,18 +220,18 @@ mod tests {
 
         repo.set_context(Context {
             name: "data-land".into(),
-            registry: Some(data_land_registry()),
+            registry: data_land_registry(),
         }).unwrap();
 
         repo.set_context(Context {
             name: "data-land".into(),
-            registry: Some(chocolate_factory_registry()),
+            registry: chocolate_factory_registry(),
         }).unwrap();
 
         let result = repo.find_context(&"data-land".into());
         assert_eq!(result.unwrap(), Some(Context {
             name: "data-land".into(),
-            registry: Some(chocolate_factory_registry()),
+            registry: chocolate_factory_registry(),
         }));
     }
 
@@ -241,12 +240,12 @@ mod tests {
         let mut repo = mk_temp_repo();
         let context = Context {
             name: "data-land".into(),
-            registry: Some(data_land_registry()),
+            registry: data_land_registry(),
         };
         repo.set_context(context.clone()).unwrap();
         let other_context = Context {
             name: "chocolate-factory".into(),
-            registry: Some(chocolate_factory_registry()),
+            registry: chocolate_factory_registry(),
         };
         repo.set_context(other_context.clone()).unwrap();
         let result = repo.find_context(&"data-land".into());
@@ -256,26 +255,17 @@ mod tests {
     fn data_land_registry() -> SchemaRegistryConfig {
         SchemaRegistryConfig {
             url: "http://dataland:8081".into(),
-            auth: Authentication::Sasl(
-                SaslAuthentication {
-                    username: "alice".into(),
-                    password: "feedYourHead".into(),
-                    ssl: false,
-                }
-            ),
+            auth: Authentication::Basic(
+                BasicAuthConfig {
+                    basic_auth_entry_name: "kannika-same-dataland".into(),
+                }),
         }
     }
 
     fn chocolate_factory_registry() -> SchemaRegistryConfig {
         SchemaRegistryConfig {
             url: "https://chocolate-factory:8081".into(),
-            auth: Authentication::Tls(
-                TlsAuthentication {
-                    cert: "oompa-loompa-cert.pem".into(),
-                    key: "golden-ticket.key".into(),
-                    ca: "willy-wonka.ca".into(),
-                }
-            ),
+            auth: Authentication::None,
         }
     }
 }

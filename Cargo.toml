@@ -7,6 +7,7 @@ edition = "2021"
 
 [dependencies]
 reqwest = "0.11.22"
+keyring = "2"
 
 #Runtime framework
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "sync", "signal", "fs", "io-util"] }
@@ -32,3 +33,9 @@ anyhow = "1"
 dirs = "5.0"
 lazy_static = "1.4.0"
 tempfile = "3.8.1"
+
+
+# command line
+dialoguer = { version = "0.11.0", features = ["password", "fuzzy-select"] }
+indicatif = "0.17.7"
+

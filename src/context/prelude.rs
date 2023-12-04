@@ -12,42 +12,34 @@ pub struct Context {
     pub name: ContextName,
 
     /// The configuration for the schema registry
-    pub registry: Option<SchemaRegistryConfig>,
+    pub registry: SchemaRegistryConfig,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SchemaRegistryConfig {
-    pub(crate) url: String,
-    pub(crate) auth: Authentication,
+    pub url: String,
+    pub auth: Authentication,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct SaslAuthentication {
-    pub(crate) username: String,
-    pub(crate) password: String,
-    pub(crate) ssl: bool,
-}
-
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct TlsAuthentication {
-    pub(crate) cert: String,
-    pub(crate) key: String,
-    pub(crate) ca: String,
+pub struct BasicAuth {
 }
 
 #[derive(Default, Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
-#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 #[serde(untagged)]
 pub enum Authentication {
     #[default]
-    Plaintext,
+    None,
 
-    Sasl(SaslAuthentication),
+    Basic(BasicAuthConfig),
+}
 
-    Tls(TlsAuthentication),
+#[derive(Default, Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BasicAuthConfig {
+    pub basic_auth_entry_name: String,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, thiserror::Error)]
