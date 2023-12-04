@@ -1,0 +1,34 @@
+[package]
+name = "same"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+reqwest = "0.11.22"
+
+#Runtime framework
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "sync", "signal", "fs", "io-util"] }
+tokio-util = { version = "0.7.9", features = ["compat"] }
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["json", "env-filter"]}
+tracing-futures = "0.2.5"
+
+#CLI
+clap          = { version ="4.4", features = ["derive"] }
+
+serde = { version = "1.0.192", features = ["derive"] }
+serde_yaml = "0.9.27"
+strum = "0.25.0"
+strum_macros = "0.25"
+
+# Error handling
+thiserror = { version = "1", features = [] }
+anyhow = "1"
+
+dirs = "5.0"
+lazy_static = "1.4.0"
+tempfile = "3.8.1"

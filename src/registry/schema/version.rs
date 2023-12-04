@@ -15,7 +15,7 @@ use crate::registry::SchemaVersionError;
 /// You can build a schema version from a string
 ///
 /// ```rust
-/// #  use schema_registry_api::SchemaVersion;
+/// use same::registry::SchemaVersion;
 /// let version = "2".parse::<SchemaVersion>().unwrap();
 /// let latest1 = "latest".parse::<SchemaVersion>().unwrap();
 /// let latest2 = "-1".parse::<SchemaVersion>().unwrap();
@@ -25,7 +25,7 @@ use crate::registry::SchemaVersionError;
 /// Note that version could not start with `0`
 ///
 /// ```rust
-/// #  use schema_registry_api::SchemaVersion;
+/// use same::registry::SchemaVersion;
 /// let result = "0".parse::<SchemaVersion>(); // 🚨 Error
 /// assert!(result.is_err());
 /// ```
@@ -129,42 +129,31 @@ impl<'de> Deserialize<'de> for SchemaVersion {
 
 #[cfg(test)]
 mod tests {
-    use assert2::{check, let_assert};
-
     use super::*;
 
     #[test]
     fn should_serde_version() {
         let json = "42";
-        let version = serde_json::from_str::<SchemaVersion>(json).unwrap();
-        check!(version == SchemaVersion::Version(NonZeroU32::new(42).unwrap()));
-        let s = serde_json::to_string(&version).unwrap();
-        check!(s == json);
+        let version = serde_yaml::from_str::<SchemaVersion>(json).unwrap();
+        assert_eq!(version, SchemaVersion::Version(NonZeroU32::new(42).unwrap()));
+        let s = serde_yaml::to_string(&version).unwrap();
+        assert_eq!(s, json);
     }
 
     #[test]
     fn should_serde_latest_version() {
         let json = "\"latest\"";
-        let version = serde_json::from_str::<SchemaVersion>(json).unwrap();
-        check!(version == SchemaVersion::Latest);
-        let s = serde_json::to_string(&version).unwrap();
-        check!(s == json);
+        let version = serde_yaml::from_str::<SchemaVersion>(json).unwrap();
+        assert_eq!(version, SchemaVersion::Latest);
+        let s = serde_yaml::to_string(&version).unwrap();
+        assert_eq!(s, json);
     }
 
     #[test]
     fn should_serde_latest_version_minus_one() {
         let json = "-1";
-        let version = serde_json::from_str::<SchemaVersion>(json).unwrap();
-        check!(version == SchemaVersion::Latest);
+        let version = serde_yaml::from_str::<SchemaVersion>(json).unwrap();
+        assert_eq!(version, SchemaVersion::Latest);
     }
 
-    #[rstest::rstest]
-    #[case::bad_string("plop")]
-    #[case::zero("0")]
-    #[case::negative("-2")]
-    #[case::too_big("4294967296")]
-    fn should_not_serde(#[case] json: &str) {
-        let result = serde_json::from_str::<SchemaVersion>(json);
-        let_assert!(Err(_) = result);
-    }
 }

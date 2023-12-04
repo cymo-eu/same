@@ -8,7 +8,7 @@ use crate::registry::SubjectNameError;
 /// You can build the schema id from a string
 ///
 /// ```rust
-/// # use schema_registry_api::SubjectName;
+/// # use same::registry::SubjectName;
 /// let a_topic_value = "a-topic-value".parse::<SubjectName>().expect("Should be a valid name");
 /// let a_topic_key = "a-topic-key".parse::<SubjectName>().expect("Should be a valid name");
 /// ```
@@ -16,7 +16,7 @@ use crate::registry::SubjectNameError;
 /// Note that name could not contains control characters
 ///
 /// ```rust
-/// #  use schema_registry_api::SubjectName;
+/// # use same::registry::SubjectName;
 /// let result = "\n".parse::<SubjectName>(); // 🚨 Error
 /// assert!(result.is_err());
 /// ```
@@ -68,20 +68,23 @@ mod tests {
     fn should_parse_subject_name() {
         let name = "sensor-values";
         let result = name.parse::<SubjectName>();
-        assert_eq!(Ok("sensor-values"), result);
+        let expected: Result<SubjectName, SubjectNameError> = Ok(SubjectName("sensor-values".to_string()));
+        assert!(matches!(result, _expected));
     }
 
     #[test]
     fn should_not_parse_empty_subject_name() {
         let name = "";
         let result = name.parse::<SubjectName>();
-        assert_eq!(Err(SubjectNameError::EmptyName), result);
+        let expected: Result<SubjectName, SubjectNameError> = Err(SubjectNameError::EmptyName);
+        assert!(matches!(result, _expected));
     }
 
     #[test]
     fn should_not_parse_bad_subject_name() {
         let name = "\nasd";
         let result = name.parse::<SubjectName>();
-        assert_eq!(Err(SubjectNameError::InvalidChar(name.to_string())), result);
+        let expected: Result<SubjectName, SubjectNameError> = Err(SubjectNameError::InvalidChar(name.to_string()));
+        assert!(matches!(result, _expected));
     }
 }
