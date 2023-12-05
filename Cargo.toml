@@ -7,6 +7,8 @@ edition = "2021"
 
 [dependencies]
 reqwest = "0.11.22"
+reqwest-middleware = "0.2.4"
+reqwest-tracing = "0.4.6"
 keyring = "2"
 
 #Runtime framework
@@ -22,6 +24,7 @@ tracing-futures = "0.2.5"
 clap          = { version ="4.4", features = ["derive"] }
 
 serde = { version = "1.0.192", features = ["derive"] }
+serde_json = { version = "1.0.64", features = [] }
 serde_yaml = "0.9.27"
 strum = "0.25.0"
 strum_macros = "0.25"
@@ -38,4 +41,7 @@ tempfile = "3.8.1"
 # command line
 dialoguer = { version = "0.11.0", features = ["password", "fuzzy-select"] }
 indicatif = "0.17.7"
+rand = "0.8.5"
+url = "2.4.1"
 
+bollard = "0.15.0"

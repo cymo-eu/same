@@ -39,6 +39,7 @@ pub enum Authentication {
 #[derive(Default, Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BasicAuthConfig {
+    pub username: String,
     pub basic_auth_entry_name: String,
 }
 
@@ -56,6 +57,12 @@ impl FromStr for ContextName {
         }
 
         Ok(Self(s.to_owned()))
+    }
+}
+
+impl From<String> for ContextName {
+    fn from(s: String) -> Self {
+        Self(s)
     }
 }
 

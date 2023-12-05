@@ -68,7 +68,7 @@ mod tests {
     fn should_parse_subject_name() {
         let name = "sensor-values";
         let result = name.parse::<SubjectName>();
-        let expected: Result<SubjectName, SubjectNameError> = Ok(SubjectName("sensor-values".to_string()));
+        let _expected: Result<SubjectName, SubjectNameError> = Ok(SubjectName("sensor-values".to_string()));
         assert!(matches!(result, _expected));
     }
 
@@ -76,7 +76,7 @@ mod tests {
     fn should_not_parse_empty_subject_name() {
         let name = "";
         let result = name.parse::<SubjectName>();
-        let expected: Result<SubjectName, SubjectNameError> = Err(SubjectNameError::EmptyName);
+        let _expected: Result<SubjectName, SubjectNameError> = Err(SubjectNameError::EmptyName);
         assert!(matches!(result, _expected));
     }
 
@@ -84,7 +84,7 @@ mod tests {
     fn should_not_parse_bad_subject_name() {
         let name = "\nasd";
         let result = name.parse::<SubjectName>();
-        let expected: Result<SubjectName, SubjectNameError> = Err(SubjectNameError::InvalidChar(name.to_string()));
+        let _expected: Result<SubjectName, SubjectNameError> = Err(SubjectNameError::InvalidChar(name.to_string()));
         assert!(matches!(result, _expected));
     }
 }

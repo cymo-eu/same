@@ -1,0 +1,26 @@
+syntax = "proto3";
+
+message ImageEvent {
+
+  Metadata metadata = 1;
+
+  string image_id = 2;
+
+  oneof payload {
+    ImageUploaded uploaded = 10;
+  }
+
+}
+
+message ImageUploaded {
+
+  string image_url = 1;
+  string uploaded_by = 2;
+
+}
+
+message Metadata {
+
+  string event_id = 1;
+
+}
