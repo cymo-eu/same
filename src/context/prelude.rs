@@ -2,7 +2,7 @@ use std::fmt::Display;
 use std::ops::Deref;
 use std::str::FromStr;
 
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub struct ContextName(pub String);
 
 /// SameContext represents a connection and additional settings for a schema registry
@@ -91,5 +91,11 @@ impl Display for ContextNameError {
         match self {
             ContextNameError::Empty => write!(f, "Context name cannot be empty"),
         }
+    }
+}
+
+impl ContextName {
+    pub fn new(s: &str) -> Result<Self, ContextNameError> {
+        Self::from_str(s)
     }
 }

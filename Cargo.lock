@@ -1378,6 +1378,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "multimap"
+version = "0.9.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e1a5d38b9b352dbd913288736af36af41c48d61b1a8cd34bcecd727561b7d511"
+dependencies = [
+ "serde",
+]
+
+[[package]]
 name = "native-tls"
 version = "0.2.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2012,6 +2021,7 @@ dependencies = [
  "dirs",
  "indicatif",
  "keyring",
+ "multimap",
  "rand 0.8.5",
  "reqwest",
  "reqwest-middleware",

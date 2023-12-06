@@ -1,31 +1,67 @@
 use std::fmt::{Debug, Display};
+use std::hash::Hash;
+use std::io::Read;
 use std::ops::Deref;
+
 use avro_rs::rabin::Rabin;
-use crate::registry::{Schema, SchemaId, SchemaVersion, SubjectName};
 use avro_rs::Schema as AvroSchema;
 use avro_rs::schema::SchemaFingerprint;
 
-struct SubjectReference {
-    subject: SubjectName,
-    version: SchemaVersion,
-    id: SchemaId,
+use crate::registry::{SchemaType, Subject};
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum FingerPrint {
+    Avro(AvroFingerPrint),
+    Protobuf,
+    Json
 }
 
-struct FingerPrint {
+#[derive(Debug, thiserror::Error)]
+pub enum FingerPrintError {
+
+    #[error(transparent)]
+    InvalidAvroSchema(#[from] avro_rs::Error),
+
+}
+
+pub trait ToFingerPrint {
+    fn to_fingerprint(&self) -> Result<FingerPrint, FingerPrintError>;
+}
+
+impl ToFingerPrint for Subject {
+    fn to_fingerprint(&self) -> Result<FingerPrint, FingerPrintError> {
+        match self.schema_type {
+            SchemaType::Avro => {
+                let schema = AvroSchema::parse_str(self.schema.as_str())
+                    .map_err(|e| FingerPrintError::InvalidAvroSchema(e))?;
+                let fingerprint = AvroFingerPrint::from_schema(schema);
+                Ok(FingerPrint::Avro(fingerprint))
+            },
+            SchemaType::Json => {
+                Ok(FingerPrint::Json)
+            },
+            SchemaType::Protobuf => {
+                Ok(FingerPrint::Protobuf)
+            }
+        }
+    }
+}
+
+pub struct AvroFingerPrint {
     pub value: SchemaFingerprint,
 }
 
-impl FingerPrint {
-    pub fn from_schema(schema: AvroSchema) -> FingerPrint {
+impl AvroFingerPrint {
+    pub fn from_schema(schema: AvroSchema) -> AvroFingerPrint {
         let value = schema.fingerprint::<Rabin>();
 
-        FingerPrint {
+        AvroFingerPrint {
             value
         }
     }
 }
 
-impl Display for FingerPrint {
+impl Display for AvroFingerPrint {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let bytes = self.deref();
         for byte in bytes {
@@ -35,7 +71,18 @@ impl Display for FingerPrint {
     }
 }
 
-impl Deref for FingerPrint {
+impl Clone for AvroFingerPrint {
+    fn clone(&self) -> Self {
+        AvroFingerPrint {
+            value: SchemaFingerprint {
+                bytes: self.value.bytes.clone()
+            }
+        }
+    }
+
+}
+
+impl Deref for AvroFingerPrint {
     type Target = [u8];
 
     fn deref(&self) -> &Self::Target {
@@ -43,13 +90,23 @@ impl Deref for FingerPrint {
     }
 }
 
-impl PartialEq for FingerPrint {
+impl PartialEq for AvroFingerPrint {
     fn eq(&self, other: &Self) -> bool {
         self.value.bytes == other.value.bytes
     }
 }
 
-impl Debug for FingerPrint {
+impl Eq for AvroFingerPrint {
+
+}
+
+impl Hash for AvroFingerPrint {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.value.bytes.hash(state);
+    }
+}
+
+impl Debug for AvroFingerPrint {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let bytes = self.deref();
         for byte in bytes {
@@ -81,7 +138,7 @@ mod tests {
 
         let schema = AvroSchema::parse_str(schema).unwrap();
 
-        let fingerprint = FingerPrint::from_schema(schema);
+        let fingerprint = AvroFingerPrint::from_schema(schema);
 
         assert_eq!(format!("{}", fingerprint), "6c286d2ee6d243cd");
     }
@@ -117,8 +174,8 @@ mod tests {
         "#).unwrap();
 
         assert_eq!(
-            FingerPrint::from_schema(one),
-            FingerPrint::from_schema(two));
+            AvroFingerPrint::from_schema(one),
+            AvroFingerPrint::from_schema(two));
     }
 
     #[test]
@@ -152,8 +209,8 @@ mod tests {
         "#).unwrap();
 
         assert_ne!(
-            FingerPrint::from_schema(one),
-            FingerPrint::from_schema(two));
+            AvroFingerPrint::from_schema(one),
+            AvroFingerPrint::from_schema(two));
     }
 
     #[test]
@@ -189,7 +246,7 @@ mod tests {
         "#).unwrap();
 
         assert_eq!(
-            FingerPrint::from_schema(one),
-            FingerPrint::from_schema(two));
+            AvroFingerPrint::from_schema(one),
+            AvroFingerPrint::from_schema(two));
     }
 }
