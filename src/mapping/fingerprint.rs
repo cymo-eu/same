@@ -96,7 +96,7 @@ mod tests {
             "fields": [
                 {
                     "name": "a",
-                    "type": "long"
+                    "type": "long",
                 }
             ]
         }
@@ -152,6 +152,43 @@ mod tests {
         "#).unwrap();
 
         assert_ne!(
+            FingerPrint::from_schema(one),
+            FingerPrint::from_schema(two));
+    }
+
+    #[test]
+    fn docs_should_be_ignored() {
+        let one = AvroSchema::parse_str(r#"
+        {
+            "type": "record",
+            "docs": "Experience is that marvelous thing that enables you recognize a mistake when you make it again.",
+            "name": "test",
+            "namespace": "com.example",
+            "fields": [
+                {
+                    "name": "a",
+                    "type": "long"
+                }
+            ]
+        }
+        "#).unwrap();
+
+        let two = AvroSchema::parse_str(r#"
+        {
+            "namespace": "com.example",
+            "type": "record",
+            "name": "test",
+            "fields": [
+                {
+                    "type": "long",
+                    "name": "a",
+                    "docs": "Trying to establish voice contact ... please yell into keyboard."
+                }
+            ]
+        }
+        "#).unwrap();
+
+        assert_eq!(
             FingerPrint::from_schema(one),
             FingerPrint::from_schema(two));
     }
