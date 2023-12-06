@@ -34,13 +34,13 @@ thiserror = { version = "1", features = [] }
 anyhow = "1"
 
 dirs = "5.0"
-lazy_static = "1.4.0"
 tempfile = "3.8.1"
-
+avro-rs = "0.13.0"
 
 # command line
 dialoguer = { version = "0.11.0", features = ["password", "fuzzy-select"] }
 indicatif = "0.17.7"
+
 rand = "0.8.5"
 url = "2.4.1"
 

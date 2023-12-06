@@ -3,6 +3,7 @@ mod error;
 mod prelude;
 mod client;
 mod cache;
+mod checksum;
 
 pub use self::repo::*;
 pub use self::error::*;

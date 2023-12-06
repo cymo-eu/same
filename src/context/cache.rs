@@ -7,20 +7,11 @@ use crate::registry::GetSchemaRegistryClient;
 
 impl Context {
 
-    fn cache_dir(&self) -> Result<PathBuf, ContextError> {
+    pub async fn cache_dir(&self) -> Result<PathBuf, ContextError> {
         let dir = dirs::cache_dir()
             .map(|mut path| {
                 path.push("io.kannika.same");
                 path.push(&self.name.deref());
-
-                // // Generate a random string to avoid collisions
-                // let random_string = rand::thread_rng()
-                //     .sample_iter(&rand::distributions::Alphanumeric)
-                //     .take(10)
-                //     .map(char::from)
-                //     .collect::<String>();
-                // path.push(random_string);
-
                 path
             })
             .ok_or(ContextError::CacheDirCreationFailed)?;
@@ -33,7 +24,7 @@ impl Context {
         progress: &mut ProgressBar,
     ) -> anyhow::Result<()> {
 
-        let cache_dir = self.cache_dir()?;
+        let cache_dir = self.cache_dir().await?;
 
         let client = self.get_client()?;
 
@@ -51,6 +42,9 @@ impl Context {
                 progress.set_message(format!("Downloading {} / {} / {}", self.name, subject, version));
                 let schema = client.subject().version(&subject, version).await?;
                 if let Some(schema) = schema {
+                    // tokio wait for 2 secs
+                    tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+
                     let schema_file = subject_cache_dir.join(version.to_string());
                     tracing::trace!("Writing schema to {}", schema_file.display());
                     serde_yaml::to_writer(std::fs::File::create(schema_file)?, &schema)?;
@@ -62,6 +56,7 @@ impl Context {
 
         Ok(())
     }
+
 }
 
 fn mkdir_p<P: AsRef<Path>>(path: P) -> Result<PathBuf, ContextError> {

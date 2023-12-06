@@ -1,6 +1,5 @@
 use std::error::Error;
 use std::fmt::Write;
-use std::ops::Deref;
 use std::sync::Arc;
 use std::time::Duration;
 use clap::Args;
@@ -52,6 +51,10 @@ impl MapCommand {
 
         //wait for tasks to finish
         let _ = tokio::join!(from_task, to_task);
+
+        info!("Generating schema mapping file...");
+
+
 
         println!("Done");
 
