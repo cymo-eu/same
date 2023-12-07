@@ -1,4 +1,3 @@
-use std::cmp;
 use std::fmt::Display;
 use std::ops::Deref;
 use std::path::{Path, PathBuf};

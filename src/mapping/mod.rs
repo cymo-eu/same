@@ -6,7 +6,7 @@ use std::sync::Arc;
 use tokio::task::JoinHandle;
 use crate::context::Context;
 use crate::mapping::index::{Candidates, SchemaRegistryIndex, SchemaRegistryIndexError};
-use crate::registry::{SchemaId, Subject};
+use crate::registry::{SchemaId};
 
 pub mod fingerprint;
 mod index;
