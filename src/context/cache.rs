@@ -1,3 +1,4 @@
+use std::cmp;
 use std::fmt::Display;
 use std::ops::Deref;
 use std::path::{Path, PathBuf};
@@ -24,7 +25,6 @@ impl Context {
         progress: &mut ProgressBar,
     ) -> Result<(), ContextError> {
         let cache_dir = self.cache_dir().await?;
-
         let client = self.get_client()?;
 
         let subjects = client.subject()
@@ -47,9 +47,21 @@ impl Context {
             for version in versions {
                 tracing::debug!("Downloading subject  {:?} version {:?}", subject, version);
 
-                let message = format!("Downloading {} / {} / {}", self.name, subject, version);
-                let padded_message = format!("{:<10}", message);
-                progress.set_message(padded_message);
+                let message = format!(
+                    "{:<8} / {:<12} / {:<3}",
+                    if self.name.len() > 8 {
+                        format!("{:.5}...", substr(self.name.deref(), 0, 5))
+                    } else {
+                        format!("{:.8}", self.name)
+                    },
+                    if subject.len() > 12 {
+                        format!("{:.9}...", substr(subject.deref(), 0, 9))
+                    } else {
+                        format!("{:.12}", subject)
+                    },
+                    format!("{:.5}", version));
+
+                progress.set_message(message);
 
                 let schema = client.subject().version(&subject, version).await?;
 
@@ -127,4 +139,16 @@ fn mkdir_p<P: AsRef<Path>>(path: P) -> Result<PathBuf, ContextError> {
         .map_err(ContextError::IoError)?;
 
     Ok(path.to_path_buf())
+}
+
+fn substr(s: &str, start: usize, end: usize) -> String {
+    match s.char_indices().nth(start) {
+        Some((start_idx, _)) => {
+            match s.char_indices().nth(end) {
+                Some((end_idx, _)) => s[start_idx..end_idx].to_string(),
+                None => s[start_idx..].to_string(),
+            }
+        },
+        None => String::new(),
+    }
 }

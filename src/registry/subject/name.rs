@@ -22,7 +22,7 @@ use crate::registry::SubjectNameError;
 /// ```
 ///
 #[derive(Debug, Clone, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
-pub struct SubjectName(String);
+pub struct SubjectName(pub String);
 
 impl AsRef<str> for SubjectName {
     fn as_ref(&self) -> &str {

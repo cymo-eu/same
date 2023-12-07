@@ -20,10 +20,6 @@ pub struct SchemaRegistryMapping {
     mapping: BTreeMap<SchemaId, SchemaId>,
 }
 
-pub trait SchemaRegistryMappingProbe {
-    fn subject_indexed(&self, subject: &Subject);
-}
-
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Missed(usize);
 
@@ -67,12 +63,12 @@ pub async fn map_schemas(
     let mut mapping = SchemaRegistryMapping::new();
 
     let mut missed: usize = 0;
-    let mut overriden: usize = 0;
+    let mut duplicates: usize = 0;
 
     // Beware, here be dragons!
     // We are iterating over the schemas of the source context,
     // and we are looking for the same schema in the target context.
-    // We are using the schema fingerprint to find the schema in the target context.
+    // We are using the schema fingerprint to match the schemas.
     // If the schema is not present, we will throw a warning.
     source_index.iter()
         .for_each(|source_schema_ref| {
@@ -96,7 +92,7 @@ pub async fn map_schemas(
                             source_schema_ref,
                             match_made_in_heaven,
                             old_mapping);
-                        overriden += 1;
+                        duplicates += 1;
                     }
                 }
             };
@@ -105,8 +101,8 @@ pub async fn map_schemas(
     if missed > 0 {
         writeln!(io::stderr(), "Missed {} schemas", missed).unwrap();
     }
-    if overriden > 0 {
-        writeln!(io::stderr(), "Overriden {} schemas", overriden).unwrap();
+    if duplicates > 0 {
+        writeln!(io::stderr(), "Found {} duplicates", duplicates).unwrap();
     }
 
     Ok(mapping)
