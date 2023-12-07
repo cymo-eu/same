@@ -5,6 +5,7 @@ use clap::Args;
 use indicatif::{ProgressState, ProgressStyle};
 use tokio::task::JoinHandle;
 use std::io::{Write};
+use dialoguer::console::Emoji;
 
 use same::context::{Context, ContextError, ContextName, ContextRepository, LocalContextRepository};
 use same::mapping::map_schemas;
@@ -19,7 +20,6 @@ pub struct MapCommand {
     to: String,
     #[arg(long, short = 'o')]
     output: Option<String>,
-    // output: Output,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -49,31 +49,29 @@ impl MapCommand {
                 .ok_or_else(|| ContextNotFound(to))?
         );
 
-        let progress = Arc::new(indicatif::MultiProgress::new());
-
-        let stderr = io::stderr();
-        writeln!(stderr.lock(), "Downloading schemas").unwrap();
-
-        let (download_source_task, download_target_task) = tokio::join!(
-            spawn_download_task(from_ctx.clone(), progress.clone()),
-            spawn_download_task(to_ctx.clone(), progress.clone()),
-        );
-
-        flatten(download_source_task).await?;
-        flatten(download_target_task).await?;
+        if from_ctx == to_ctx {
+            return Err(anyhow::anyhow!("Cannot map a context to itself"));
+        }
 
 
-        writeln!(stderr.lock(), "Mapping schemas...").unwrap();
+        step(1, Emoji("🚚 ", ""),"Downloading schemas...");
+        download_schemas(&from_ctx, &to_ctx).await?;
+
+        step(2, Emoji("🔎 ", ""),"Mapping schemas...");
         let mapping = map_schemas(
             from_ctx.clone(),
             to_ctx.clone(),
         ).await?;
 
-        writeln!(stderr.lock(), "Done").unwrap();
+        step(3, Emoji("🖨️", ""),"Brrrr...");
         serde_yaml::to_writer(self.output(), &mapping)?;
+
+        step(4, Emoji("💫", ""),"Done");
 
         Ok(())
     }
+
+
 }
 
 impl MapCommand {
@@ -83,6 +81,18 @@ impl MapCommand {
             None => Box::new(std::io::stdout()),
         }
     }
+}
+
+async fn download_schemas(from_ctx: &Arc<Context>, to_ctx: &Arc<Context>) -> Result<(), ContextError> {
+    let progress = Arc::new(indicatif::MultiProgress::new());
+    let (download_source_task, download_target_task) = tokio::join!(
+            spawn_download_task(from_ctx.clone(), progress.clone()),
+            spawn_download_task(to_ctx.clone(), progress.clone()),
+        );
+
+    flatten(download_source_task).await?;
+    flatten(download_target_task).await?;
+    Ok(())
 }
 
 async fn spawn_download_task(
@@ -103,6 +113,19 @@ async fn spawn_download_task(
     })
 }
 
+fn step(
+    number: usize,
+    emoji: Emoji,
+    message: &str,
+) {
+    writeln!(
+        io::stderr(),
+        "[{}/4] {} {}",
+        number,
+        emoji,
+        message,
+    ).unwrap();
+}
 
 type DownloadTask = JoinHandle<DownloadTaskResult>;
 type DownloadTaskResult = Result<(), ContextError>;

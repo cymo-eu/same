@@ -26,6 +26,13 @@ pub struct SchemaRef {
     pub fingerprint: FingerPrint,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Candidates {
+    Multiple(Vec<SchemaRef>),
+    PerfectMatch(SchemaRef),
+    None,
+}
+
 impl SchemaRegistryIndex {
     pub fn new() -> Self {
         Self {
@@ -69,10 +76,18 @@ impl SchemaRegistryIndex {
         self.fp.insert(reference.fingerprint.clone(), reference.clone());
     }
 
-    pub fn find_by_fingerprint(&self, fingerprint: &FingerPrint) -> Vec<SchemaRef> {
+    pub fn find_by_fingerprint(&self, fingerprint: &FingerPrint) -> Candidates {
         self.fp.get_vec(fingerprint)
             .map(|schema_refs| schema_refs.to_owned())
-            .unwrap_or_default()
+            .map(|schema_refs| {
+                match schema_refs {
+                    mut schema_refs if schema_refs.len() == 1 => {
+                        Candidates::PerfectMatch(schema_refs.pop().unwrap())
+                    },
+                    schema_refs => Candidates::Multiple(schema_refs),
+                }
+            })
+            .unwrap_or(Candidates::None)
     }
 
 }
@@ -97,7 +112,7 @@ impl TryFrom<&Subject> for SchemaRef {
 #[cfg(test)]
 mod tests {
     use crate::mapping::fingerprint::ToFingerPrint;
-    use crate::mapping::index::{SchemaRef, SchemaRegistryIndex};
+    use crate::mapping::index::{Candidates, SchemaRegistryIndex};
     use crate::registry::{SchemaId, SchemaType, SchemaVersion, Subject};
 
 
@@ -108,7 +123,7 @@ mod tests {
 
         index.index(schema_subject).unwrap();
 
-        let expected: Vec<SchemaRef> = vec![schema_subject.try_into().unwrap()];
+        let expected: Candidates = Candidates::PerfectMatch(schema_subject.try_into().unwrap());
 
         assert_eq!(
             index.find_by_fingerprint(&schema_subject.to_fingerprint().unwrap()),
@@ -123,7 +138,7 @@ mod tests {
 
         let results = index.find_by_fingerprint(&schema_subject.to_fingerprint().unwrap());
 
-        assert_eq!(results.len(), 0);
+        assert_eq!(results, Candidates::None);
     }
 
     #[test]
@@ -135,8 +150,7 @@ mod tests {
 
         let results = index.find_by_fingerprint(&schema_subject.to_fingerprint().unwrap());
 
-        assert_eq!(results.len(), 0);
-
+        assert_eq!(results, Candidates::None);
     }
 
     fn avrocado_subject() -> Subject {

@@ -1,12 +1,12 @@
 use std::collections::{BTreeMap};
-use std::fmt::Write;
+use std::io;
+use std::io::{Write};
+use std::ops::Deref;
 use std::sync::Arc;
-use std::time::Duration;
-use indicatif::{ProgressState, ProgressStyle};
 use tokio::task::JoinHandle;
 use crate::context::Context;
-use crate::mapping::index::{SchemaRegistryIndex, SchemaRegistryIndexError};
-use crate::registry::SchemaId;
+use crate::mapping::index::{Candidates, SchemaRegistryIndex, SchemaRegistryIndexError};
+use crate::registry::{SchemaId, Subject};
 
 pub mod fingerprint;
 mod index;
@@ -18,6 +18,21 @@ type IndexTaskResult = Result<SchemaRegistryIndex, SchemaRegistryIndexError>;
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, Default)]
 pub struct SchemaRegistryMapping {
     mapping: BTreeMap<SchemaId, SchemaId>,
+}
+
+pub trait SchemaRegistryMappingProbe {
+    fn subject_indexed(&self, subject: &Subject);
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct Missed(usize);
+
+impl Deref for Missed {
+    type Target = usize;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
 }
 
 impl SchemaRegistryMapping {
@@ -41,17 +56,18 @@ pub async fn map_schemas(
     source: Arc<Context>,
     target: Arc<Context>,
 ) -> anyhow::Result<SchemaRegistryMapping> {
-    let progress = Arc::new(indicatif::MultiProgress::new());
 
     let (source_index, target_index) = tokio::join!(
-        spawn_index_task(source.clone(), progress.clone()),
-        spawn_index_task(target.clone(), progress.clone()),
+        spawn_index_task(source.clone()),
+        spawn_index_task(target.clone()),
     );
-
     let source_index = flatten(source_index).await?;
     let target_index = flatten(target_index).await?;
 
     let mut mapping = SchemaRegistryMapping::new();
+
+    let mut missed: usize = 0;
+    let mut overriden: usize = 0;
 
     // Beware, here be dragons!
     // We are iterating over the schemas of the source context,
@@ -64,27 +80,35 @@ pub async fn map_schemas(
                 .find_by_fingerprint(&source_schema_ref.fingerprint);
 
             match results {
-                _no_candidates if results.len() == 0 => {
+                Candidates::None => {
                     tracing::warn!("Missing mapping for schema: {:?}", source_schema_ref);
-                },
-                _multiple_candidates if results.len() > 1 => {
-                    tracing::warn!("Multiple candidates for schema: {:?}", source_schema_ref);
-                },
-                match_made_in_heaven if results.len() == 1 => {
-                    let target_schema = match_made_in_heaven
-                        .iter()
-                        .next()
-                        .unwrap();
+                    missed += 1;
+                }
+                Candidates::Multiple(refs) => {
+                    tracing::warn!("Multiple candidates for schema: {:?} -> {:?}", source_schema_ref, refs);
+                    missed += 1;
+                }
+                Candidates::PerfectMatch(match_made_in_heaven) => {
                     if let Some(old_mapping) = mapping.mapping.insert(
                         source_schema_ref.id,
-                        target_schema.id) {
-                        tracing::warn!("Overwriting mapping for schema: {:?} -> {:?} (was {:?})", source_schema_ref, target_schema, old_mapping);
+                        match_made_in_heaven.id) {
+                        tracing::warn!("Overwriting mapping for schema: {:?} -> {:?} (was {:?})",
+                            source_schema_ref,
+                            match_made_in_heaven,
+                            old_mapping);
+                        overriden += 1;
                     }
-                },
-                _ => unreachable!("If len() is broken and returns negative lengths, we should hide in a corner and cry"),
+                }
             };
-
         });
+
+    if missed > 0 {
+        writeln!(io::stderr(), "Missed {} schemas", missed).unwrap();
+    }
+    if overriden > 0 {
+        writeln!(io::stderr(), "Overriden {} schemas", overriden).unwrap();
+    }
+
     Ok(mapping)
 }
 
@@ -93,7 +117,7 @@ async fn index_context(
 ) -> IndexTaskResult {
     let mut idx = SchemaRegistryIndex::new();
     ctx.walk_schema_subjects(|subject| {
-        idx.index( &subject)
+        idx.index(&subject)
     })
         .await
         .map_err(|err| SchemaRegistryIndexError::IndexingError(err.to_string()))?;
@@ -102,18 +126,9 @@ async fn index_context(
 
 async fn spawn_index_task(
     ctx: Arc<Context>,
-    progress_bar: Arc<indicatif::MultiProgress>,
 ) -> IndexTask {
     tokio::spawn(async move {
-        let progress_bar = progress_bar.add(indicatif::ProgressBar::new_spinner());
-        progress_bar.enable_steady_tick(Duration::from_millis(100));
-        progress_bar.tick();
-        progress_bar.set_style(ProgressStyle::with_template("{spinner:.green} [{elapsed_precise}] {msg} [{wide_bar:.cyan/blue}] ({eta})")
-            .unwrap()
-            .with_key("eta", |state: &ProgressState, w: &mut dyn Write| write!(w, "{:.1}s", state.eta().as_secs_f64()).unwrap())
-            .progress_chars("#>-"));
         let idx = index_context(&ctx).await?;
-        progress_bar.finish_and_clear();
         Ok(idx)
     })
 }

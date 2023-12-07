@@ -1,6 +1,9 @@
 mod add;
 mod map;
 
+use std::io;
+use std::io::Write;
+use std::process::exit;
 use clap::{Parser, Subcommand};
 use crate::add::AddCommand;
 use crate::map::MapCommand;
@@ -10,11 +13,13 @@ use tracing_subscriber::EnvFilter;
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
 
-    // configure_text_logger();
-
     let opt = Opt::parse();
 
-    let x = match opt.command {
+    if opt.verbose.unwrap_or(false) {
+        configure_logger();
+    }
+
+    let result = match opt.command {
         Commands::Map(cmd) => {
             cmd.run().await
         }
@@ -23,15 +28,17 @@ async fn main() -> anyhow::Result<()> {
         }
     };
 
-    match &x {
+    match &result {
         Ok(_) => {
-            tracing::info!("ok");
+            tracing::info!("program finished successfully");
         }
         Err(e) => {
-            tracing::error!("error: {:?}", e);
+            writeln!(io::stderr(), "error: {:?}", e).unwrap();
         }
     }
-    x
+    result
+        .map(|_| exit(0))
+        .map_err(|_| exit(1))
 }
 
 #[derive(Parser, Debug)]
@@ -41,6 +48,9 @@ struct Opt {
 
     #[command(subcommand)]
     pub command: Commands,
+
+    #[arg(long, short = 'v')]
+    pub verbose: Option<bool>
 
 }
 
@@ -52,7 +62,7 @@ enum Commands {
 
 
 /// Logger for humans. It enables some debug info
-fn configure_text_logger() {
+fn configure_logger() {
     let format = tracing_subscriber::fmt::layer()
         .with_level(true)
         .with_target(false)

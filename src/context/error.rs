@@ -17,4 +17,7 @@ pub enum ContextError {
 
     #[error("Schema registry error: {0}")]
     SchemaRegistryError(#[from] registry::SchemaRegistryClientError),
+
+    #[error("Walk error: {0}")]
+    WalkError(String),
 }
