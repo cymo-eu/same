@@ -1,3 +1,4 @@
+use crate::registry;
 
 #[derive(Debug, thiserror::Error)]
 pub enum ContextError {
@@ -13,4 +14,7 @@ pub enum ContextError {
 
     #[error("Failed to create cache directory")]
     CacheDirCreationFailed,
+
+    #[error("Schema registry error: {0}")]
+    SchemaRegistryError(#[from] registry::SchemaRegistryClientError),
 }

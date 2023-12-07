@@ -1,6 +1,5 @@
 use std::fmt::{Debug, Display};
 use std::hash::Hash;
-use std::io::Read;
 use std::ops::Deref;
 
 use avro_rs::rabin::Rabin;
@@ -153,7 +152,7 @@ mod tests {
             "fields": [
                 {
                     "name": "a",
-                    "type": "long",
+                    "type": "long"
                 }
             ]
         }

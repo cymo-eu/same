@@ -2,20 +2,18 @@ mod id;
 mod reference;
 mod version;
 
-use std::fmt::Display;
-
 pub use self::id::*;
 pub use self::reference::*;
 pub use self::version::*;
 
 /// A Schema type
-#[derive(Debug, Clone, Copy, PartialEq, Default, Eq, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, Default)]
 #[serde(rename_all = "UPPERCASE")]
 #[derive(strum_macros::EnumString, strum_macros::Display)]
 #[strum(ascii_case_insensitive)]
 pub enum SchemaType {
-    /// Avro
     #[default]
+    /// Avro
     Avro,
     /// Protobuf
     Protobuf,
@@ -30,7 +28,6 @@ pub struct Schema {
     /// The schema as string
     pub schema: String,
 }
-
 
 #[cfg(test)]
 mod tests {

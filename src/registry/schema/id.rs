@@ -1,31 +1,41 @@
 use std::fmt::Display;
+use std::ops::Deref;
 use std::str::FromStr;
 
 use crate::registry::*;
 
 /// The schema id
 ///
-/// You can build the schema id from a string or from an `u64`
+/// You can build the schema id from a string or from an `u32`
 ///
 /// ```rust
+/// use same::registry::SchemaId;
 /// let id = "1".parse::<SchemaId>().expect("Should be a valid id");
 /// let id2 = SchemaId::from(1);
 /// assert_eq!(id, id2);
 /// ```
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
-pub struct SchemaId(u64);
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize, PartialOrd, Ord)]
+pub struct SchemaId(u32);
 
 impl FromStr for SchemaId {
     type Err = SchemaIdError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let id = s.parse::<u64>().map_err(|_| SchemaIdError(s.to_string()))?;
+        let id = s.parse::<u32>().map_err(|_| SchemaIdError(s.to_string()))?;
         Ok(Self(id))
     }
 }
 
-impl From<u64> for SchemaId {
-    fn from(value: u64) -> Self {
+impl Deref for SchemaId {
+    type Target = u32;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl From<u32> for SchemaId {
+    fn from(value: u32) -> Self {
         SchemaId(value)
     }
 }

@@ -1,48 +1,50 @@
 use multimap::MultiMap;
 
-use crate::AvroSchema;
-use crate::context::ContextName;
 use crate::mapping::fingerprint::{FingerPrint, ToFingerPrint};
 use crate::registry::{SchemaId, SchemaType, SchemaVersion, Subject, SubjectName};
 
-struct SchemaRegistryIndex {
+/// Schema registry index that allows for fast lookup of schema references by fingerprint or by schema id.
+pub struct SchemaRegistryIndex {
     // Index by fingerprint
     fp: MultiMap<FingerPrint, SchemaRef>,
-    // Index by context and schema id
-    ctx_schema_ref: MultiMap<ContextSchemaRef, SchemaRef>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-struct ContextSchemaRef {
-    context: ContextName,
-    id: SchemaId,
+#[derive(Debug, Clone, thiserror::Error)]
+pub enum SchemaRegistryIndexError {
+    #[error("Failed to calculate fingerprint for subject {0} with schema version: {1}")]
+    FailedToCalculateFingerprint(SubjectName, SchemaVersion),
+    #[error("Failed to index schema: {0}")]
+    IndexingError(String),
 }
 
-#[derive(Debug, Clone)]
-struct SchemaRef {
-    context: ContextName,
-    subject: SubjectName,
-    version: SchemaVersion,
-    id: SchemaId,
-    schema_type: SchemaType,
-    fingerprint: FingerPrint,
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SchemaRef {
+    pub subject: SubjectName,
+    pub version: SchemaVersion,
+    pub id: SchemaId,
+    pub schema_type: SchemaType,
+    pub fingerprint: FingerPrint,
 }
 
 impl SchemaRegistryIndex {
     pub fn new() -> Self {
         Self {
             fp: MultiMap::new(),
-            ctx_schema_ref: MultiMap::new(),
         }
+    }
+
+    // TODO implement proper iterator
+    pub fn iter<'a>(&'a self) -> impl Iterator<Item=&SchemaRef> + 'a {
+        self.fp.iter()
+            .map(|(_, schema_ref)| schema_ref)
     }
 
     pub fn index(
         &mut self,
-        context: &ContextName,
         schema_subject: &Subject,
-    ) -> anyhow::Result<()> {
+    ) -> Result<(), SchemaRegistryIndexError> {
         match schema_subject.schema_type {
-            SchemaType::Avro => self.index_avro(context, schema_subject),
+            SchemaType::Avro => self.index_avro(schema_subject),
             SchemaType::Protobuf => Ok(()),
             SchemaType::Json => Ok(()),
         }
@@ -50,21 +52,11 @@ impl SchemaRegistryIndex {
 
     fn index_avro(
         &mut self,
-        context: &ContextName,
         schema_subject: &Subject,
-    ) -> anyhow::Result<()> {
-        let schema = AvroSchema::parse_str(schema_subject.schema.as_str())?;
+    ) -> Result<(), SchemaRegistryIndexError> {
+        let schema_ref: SchemaRef = schema_subject.try_into()?;
 
-        let reference = SchemaRef {
-            context: context.clone(),
-            subject: schema_subject.subject.clone(),
-            version: schema_subject.version.clone(),
-            id: schema_subject.id.clone(),
-            schema_type: schema_subject.schema_type.clone(),
-            fingerprint: schema_subject.to_fingerprint()?,
-        };
-
-        self.insert(reference);
+        self.insert(schema_ref);
 
         Ok(())
     }
@@ -75,92 +67,76 @@ impl SchemaRegistryIndex {
         reference: SchemaRef,
     ) {
         self.fp.insert(reference.fingerprint.clone(), reference.clone());
-
-        let ctx_schema_ref = ContextSchemaRef {
-            context: reference.context.clone(),
-            id: reference.id.clone(),
-        };
-
-        self.ctx_schema_ref.insert(ctx_schema_ref, reference.clone());
     }
 
-    pub fn find_by_fingerprint(&self, fingerprint: &FingerPrint) -> Option<&Vec<SchemaRef>> {
+    pub fn find_by_fingerprint(&self, fingerprint: &FingerPrint) -> Vec<SchemaRef> {
         self.fp.get_vec(fingerprint)
+            .map(|schema_refs| schema_refs.to_owned())
+            .unwrap_or_default()
     }
 
-    pub fn find_by_context_schema_ref(&self, context: &ContextName, id: &SchemaId) -> Option<&Vec<SchemaRef>> {
-        self.ctx_schema_ref.get_vec(&ContextSchemaRef {
-            context: context.clone(),
-            id: id.clone(),
+}
+
+impl TryFrom<&Subject> for SchemaRef {
+    type Error = SchemaRegistryIndexError;
+
+    fn try_from(subject: &Subject) -> Result<Self, Self::Error> {
+        Ok(Self {
+            subject: subject.subject.clone(),
+            version: subject.version.clone(),
+            id: subject.id.clone(),
+            schema_type: subject.schema_type.clone(),
+            fingerprint: subject.to_fingerprint()
+                .map_err(|_| SchemaRegistryIndexError::FailedToCalculateFingerprint(
+                    subject.subject.clone(),
+                    subject.version.clone()))?,
         })
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use clap::builder::TypedValueParser;
-
-    use crate::context::ContextName;
     use crate::mapping::fingerprint::ToFingerPrint;
     use crate::mapping::index::{SchemaRef, SchemaRegistryIndex};
-    use crate::registry::{SchemaId, SchemaType, SchemaVersion, Subject, SubjectName};
+    use crate::registry::{SchemaId, SchemaType, SchemaVersion, Subject};
 
-    fn schema_ref(ctx: &ContextName, subject: &Subject) -> SchemaRef {
-        SchemaRef {
-            context: ctx.clone(),
-            subject: subject.subject.clone(),
-            version: subject.version.clone(),
-            id: subject.id.clone(),
-            schema_type: subject.schema_type.clone(),
-            fingerprint: subject.to_fingerprint()
-                .expect("Failed to fingerprint schema"),
-        }
-    }
 
     #[test]
     fn find_avro_schema_by_fingerprint() {
         let mut index = SchemaRegistryIndex::new();
-        let left = ContextName::new("left").unwrap();
-        let right = ContextName::new("right").unwrap();
-        let schema_subject = avrocado_subject();
+        let schema_subject = &avrocado_subject();
 
-        index.index(&left, &schema_subject).unwrap();
-        index.index(&right, &schema_subject).unwrap();
+        index.index(schema_subject).unwrap();
 
-        let expected = Some(&vec![
-            schema_ref(&left, &schema_subject),
-            schema_ref(&right, &schema_subject)
-        ]);
+        let expected: Vec<SchemaRef> = vec![schema_subject.try_into().unwrap()];
 
-        assert!(matches!(
+        assert_eq!(
             index.find_by_fingerprint(&schema_subject.to_fingerprint().unwrap()),
-            expected));
+            expected);
     }
 
     #[test]
     fn index_protobuf_schema_is_ignored() {
         let mut index = SchemaRegistryIndex::new();
-        let context = ContextName::new("fries").unwrap();
         let schema_subject = potatobuf_subject();
+        index.index(&schema_subject).unwrap();
 
-        index.index(&context, &schema_subject).unwrap();
+        let results = index.find_by_fingerprint(&schema_subject.to_fingerprint().unwrap());
 
-        assert!(matches!(
-            index.find_by_fingerprint(&schema_subject.to_fingerprint().unwrap()),
-            None));
+        assert_eq!(results.len(), 0);
     }
 
     #[test]
     fn index_json_schema_is_ignored() {
         let mut index = SchemaRegistryIndex::new();
-        let context = ContextName::new("low-hanging-jackson-fruit").unwrap();
         let schema_subject = jacksonfruit_subject();
 
-        index.index(&context, &schema_subject).unwrap();
+        index.index(&schema_subject).unwrap();
 
-        assert!(matches!(
-            index.find_by_fingerprint(&schema_subject.to_fingerprint().unwrap()),
-            None));
+        let results = index.find_by_fingerprint(&schema_subject.to_fingerprint().unwrap());
+
+        assert_eq!(results.len(), 0);
+
     }
 
     fn avrocado_subject() -> Subject {

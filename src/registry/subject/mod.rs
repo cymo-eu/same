@@ -24,7 +24,7 @@ pub struct Subject {
     /// Version of the schema
     pub version: SchemaVersion,
     /// The schema type
-    #[serde(rename = "schema_type", default)]
+    #[serde(rename="schemaType", default)]
     pub schema_type: SchemaType,
     /// The schema
     pub schema: String,
@@ -49,4 +49,31 @@ pub struct RegisterSchema {
 pub struct RegisteredSchema {
     /// The schema id
     pub id: SchemaId,
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::registry::{SchemaId, SchemaVersion, Subject, SubjectName};
+
+    #[test]
+    fn parse_protobuf_subject() {
+        let subject: Subject = serde_json::from_str(
+            r#"{
+                "subject": "potatobuf",
+                "version": 1,
+                "id": 2,
+                "schema": "schema",
+                "schemaType": "PROTOBUF"
+            }"#,
+        ).unwrap();
+
+        assert_eq!(subject, Subject {
+            subject: "potatobuf".parse::<SubjectName>().unwrap(),
+            version: "1".parse::<SchemaVersion>().unwrap(),
+            id: "2".parse::<SchemaId>().unwrap(),
+            schema_type: crate::registry::SchemaType::Protobuf,
+            schema: "schema".to_owned(),
+        });
+    }
+
 }

@@ -4,24 +4,34 @@ mod map;
 use clap::{Parser, Subcommand};
 use crate::add::AddCommand;
 use crate::map::MapCommand;
+use tracing_subscriber::prelude::*;
+use tracing_subscriber::EnvFilter;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
 
-    tracing_subscriber::fmt::init();
+    // configure_text_logger();
 
     let opt = Opt::parse();
 
-    match opt.command {
+    let x = match opt.command {
         Commands::Map(cmd) => {
-            cmd.run().await?;
+            cmd.run().await
         }
         Commands::Add(cmd) => {
-            cmd.run().await?;
+            cmd.run().await
+        }
+    };
+
+    match &x {
+        Ok(_) => {
+            tracing::info!("ok");
+        }
+        Err(e) => {
+            tracing::error!("error: {:?}", e);
         }
     }
-
-    Ok(())
+    x
 }
 
 #[derive(Parser, Debug)]
@@ -40,3 +50,19 @@ enum Commands {
     Add(AddCommand),
 }
 
+
+/// Logger for humans. It enables some debug info
+fn configure_text_logger() {
+    let format = tracing_subscriber::fmt::layer()
+        .with_level(true)
+        .with_target(false)
+        .with_thread_ids(false)
+        .with_thread_names(false);
+    let filter = EnvFilter::try_from_default_env()
+        .or_else(|_| EnvFilter::try_new("debug,hyper=warn"))
+        .unwrap();
+    tracing_subscriber::registry()
+        .with(filter)
+        .with(format)
+        .init();
+}
