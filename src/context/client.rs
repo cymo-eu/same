@@ -10,7 +10,7 @@ impl crate::registry::GetSchemaRegistryClient for Context {
             }
             Authentication::Basic(basic) => {
                 let entry = keyring::Entry::new(
-                    format!("kannika-same-{}", basic.basic_auth_entry_name).as_str(),
+                    basic.basic_auth_entry_name.as_str(),
                     basic.username.as_str())
                     .map_err(|err| SchemaRegistryClientError::KeyringError(err))?;
 
