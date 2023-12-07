@@ -7,19 +7,25 @@ use tokio::task::JoinHandle;
 use std::io::{Write};
 use dialoguer::console::Emoji;
 
-use same::context::{Context, ContextError, ContextName, ContextRepository, LocalContextRepository};
+use same::context::{Context, ContextError, ContextName, ContextRepository, DownloadAllSchemaFilesOpts, LocalContextRepository};
 use same::mapping::map_schemas;
 
 use crate::map::MapError::ContextNotFound;
 
 #[derive(Args, Debug)]
 pub struct MapCommand {
+    /// The name of the context to map from
     #[arg(long)]
     from: String,
+    /// The name of the context to map to
     #[arg(long)]
     to: String,
+    /// Output file. Optional; if not specified, output is written to stdout
     #[arg(long, short = 'o')]
     output: Option<String>,
+    /// Ignore the local cache and download all schemas again
+    #[arg(long, short = 'U')]
+    force_update: bool
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -33,6 +39,7 @@ enum MapError {
 }
 
 impl MapCommand {
+
     pub async fn run(&self) -> anyhow::Result<()> {
         let repo = LocalContextRepository::get();
 
@@ -55,7 +62,10 @@ impl MapCommand {
 
 
         step(1, Emoji("🚚 ", ""),"Downloading schemas...");
-        download_schemas(&from_ctx, &to_ctx).await?;
+        let opts = DownloadAllSchemaFilesOpts {
+            ignore_cache: Some(self.force_update)
+        };
+        download_schemas(&from_ctx, &to_ctx, opts).await?;
 
         step(2, Emoji("🔎 ", ""),"Mapping schemas...");
         let mapping = map_schemas(
@@ -83,11 +93,15 @@ impl MapCommand {
     }
 }
 
-async fn download_schemas(from_ctx: &Arc<Context>, to_ctx: &Arc<Context>) -> Result<(), ContextError> {
+async fn download_schemas(
+    from_ctx: &Arc<Context>,
+    to_ctx: &Arc<Context>,
+    opts: DownloadAllSchemaFilesOpts,
+) -> Result<(), ContextError> {
     let progress = Arc::new(indicatif::MultiProgress::new());
     let (download_source_task, download_target_task) = tokio::join!(
-            spawn_download_task(from_ctx.clone(), progress.clone()),
-            spawn_download_task(to_ctx.clone(), progress.clone()),
+            spawn_download_task(from_ctx.clone(), progress.clone(), opts.clone()),
+            spawn_download_task(to_ctx.clone(), progress.clone(), opts),
         );
 
     flatten(download_source_task).await?;
@@ -98,6 +112,7 @@ async fn download_schemas(from_ctx: &Arc<Context>, to_ctx: &Arc<Context>) -> Res
 async fn spawn_download_task(
     ctx: Arc<Context>,
     progress_bar: Arc<indicatif::MultiProgress>,
+    opts: DownloadAllSchemaFilesOpts,
 ) ->  DownloadTask {
     tokio::spawn(async move {
         let mut progress_bar = progress_bar.add(indicatif::ProgressBar::new_spinner());
@@ -107,7 +122,7 @@ async fn spawn_download_task(
             .unwrap()
             .with_key("eta", |state: &ProgressState, w: &mut dyn fmt::Write| write!(w, "{:.1}s", state.eta().as_secs_f64()).unwrap())
             .progress_chars("#>-"));
-        ctx.download_all_schema_files(&mut progress_bar).await?;
+        ctx.download_all_schema_files(&mut progress_bar, opts).await?;
         progress_bar.finish_and_clear();
         Ok(())
     })

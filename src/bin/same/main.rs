@@ -56,7 +56,10 @@ struct Opt {
 
 #[derive(Subcommand, Debug)]
 enum Commands {
+    /// Generating a mapping between two schema registry contexts
     Map(MapCommand),
+
+    /// Configure a schema registry context
     Add(AddCommand),
 }
 

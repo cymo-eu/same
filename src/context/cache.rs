@@ -6,6 +6,12 @@ use crate::context::{Context, ContextError};
 use crate::registry::{ListSubjectsOptions, Subject};
 use crate::registry::GetSchemaRegistryClient;
 
+#[derive(Debug, Clone)]
+pub struct DownloadAllSchemaFilesOpts {
+    // Force update of all schemas
+    pub ignore_cache: Option<bool>
+}
+
 impl Context {
     pub async fn cache_dir(&self) -> Result<PathBuf, ContextError> {
         let dir = dirs::cache_dir()
@@ -22,9 +28,12 @@ impl Context {
     pub async fn download_all_schema_files(
         &self,
         progress: &mut ProgressBar,
+        opts: DownloadAllSchemaFilesOpts,
     ) -> Result<(), ContextError> {
         let cache_dir = self.cache_dir().await?;
         let client = self.get_client()?;
+
+        let force_update = opts.ignore_cache.unwrap_or(false);
 
         let subjects = client.subject()
             .list(ListSubjectsOptions::default())
@@ -61,6 +70,14 @@ impl Context {
                     format!("{:.5}", version));
 
                 progress.set_message(message);
+
+                // Check if we already have this schema cached
+                let schema_file = subject_cache_dir.join(version.to_string());
+
+                if !force_update && schema_file.exists() {
+                    tracing::debug!("Schema already cached at {}", schema_file.display());
+                    continue;
+                }
 
                 let schema = client.subject().version(&subject, version).await?;
 
