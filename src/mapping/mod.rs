@@ -1,11 +1,11 @@
 use std::collections::{BTreeMap};
 use std::io;
 use std::io::{Write};
-use std::ops::Deref;
 use std::sync::Arc;
 use tokio::task::JoinHandle;
 use crate::context::Context;
 use crate::mapping::index::{Candidates, SchemaRegistryIndex, SchemaRegistryIndexError};
+use crate::mapping::MappingError::OverwritingMapping;
 use crate::registry::{SchemaId};
 
 pub mod fingerprint;
@@ -20,15 +20,19 @@ pub struct SchemaRegistryMapping {
     mapping: BTreeMap<SchemaId, SchemaId>,
 }
 
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
-pub struct Missed(usize);
+#[derive(Debug, thiserror::Error)]
+pub enum MappingError {
+    #[error("Missing mapping for schema: {0}")]
+    MissingMapping(SchemaId),
 
-impl Deref for Missed {
-    type Target = usize;
+    #[error("Multiple mappings for schema: {0} -> {1:?}")]
+    MultipleMappings(SchemaId, Vec<SchemaId>),
 
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
+    #[error("Overwriting mapping for schema: {0} -> {1} (was {2})")]
+    OverwritingMapping(SchemaId, SchemaId, SchemaId),
+
+    #[error("Indexing error: {0}")]
+    IndexingError(#[from] SchemaRegistryIndexError),
 }
 
 impl SchemaRegistryMapping {
@@ -43,27 +47,37 @@ impl SchemaRegistryMapping {
     /// Inserts the mapping between two schemas
     /// If there was already a mapping for the source schema, the original target schema will be returned
     /// If there was no mapping for the source schema, None will be returned
-    pub fn insert(&mut self, source: SchemaId, target: SchemaId) -> Option<SchemaId> {
-        self.mapping.insert(source, target)
+    pub fn insert(&mut self, source: SchemaId, target: SchemaId) -> Result<Option<SchemaId>, MappingError> {
+        if let Some(old_mapping)  = self.mapping.insert(source, target) {
+            if old_mapping != target {
+                tracing::error!("Overwriting mapping for schema: {:?} -> {:?} (was {:?})",
+                        source,
+                        target,
+                        old_mapping);
+                return Err(OverwritingMapping(source, target, old_mapping));
+            }
+        }
+
+        Ok(None)
     }
 }
 
 pub async fn map_schemas(
     source: Arc<Context>,
     target: Arc<Context>,
-) -> anyhow::Result<SchemaRegistryMapping> {
+) -> Result<SchemaRegistryMapping, MappingError> {
 
     let (source_index, target_index) = tokio::join!(
         spawn_index_task(source.clone()),
         spawn_index_task(target.clone()),
     );
+
     let source_index = flatten(source_index).await?;
     let target_index = flatten(target_index).await?;
 
     let mut mapping = SchemaRegistryMapping::new();
 
     let mut missed: usize = 0;
-    let mut duplicates: usize = 0;
 
     // Beware, here be dragons!
     // We are iterating over the schemas of the source context,
@@ -81,28 +95,29 @@ pub async fn map_schemas(
                     missed += 1;
                 }
                 Candidates::Multiple(refs) => {
-                    tracing::warn!("Multiple candidates for schema: {:?} -> {:?}", source_schema_ref, refs);
-                    missed += 1;
+                    let unique_ids = refs.iter()
+                        .map(|schema_ref| schema_ref.id)
+                        .collect::<std::collections::HashSet<_>>();
+
+                    // We got multiple candidates, but they all have the same id, so we are fine
+                    if unique_ids.len() == 1 {
+                        let first_one_is_fine = refs.first().unwrap();
+                        mapping.insert(source_schema_ref.id, first_one_is_fine.id).unwrap();
+
+                    // We got multiple candidates, but they have different ids
+                    } else {
+                        tracing::warn!("Multiple candidates for schema: {:?} -> {:?}", source_schema_ref, refs);
+                        missed += 1;
+                    }
                 }
                 Candidates::PerfectMatch(match_made_in_heaven) => {
-                    if let Some(old_mapping) = mapping.mapping.insert(
-                        source_schema_ref.id,
-                        match_made_in_heaven.id) {
-                        tracing::warn!("Overwriting mapping for schema: {:?} -> {:?} (was {:?})",
-                            source_schema_ref,
-                            match_made_in_heaven,
-                            old_mapping);
-                        duplicates += 1;
-                    }
+                    mapping.insert(source_schema_ref.id, match_made_in_heaven.id).unwrap();
                 }
             };
         });
 
     if missed > 0 {
-        writeln!(io::stderr(), "Missed {} schemas", missed).unwrap();
-    }
-    if duplicates > 0 {
-        writeln!(io::stderr(), "Found {} duplicates", duplicates).unwrap();
+        writeln!(io::stderr(), "Missed {} schemas.", missed).unwrap();
     }
 
     Ok(mapping)

@@ -68,3 +68,12 @@ These are ignored for now:
 
 - JSON Schema
 - Protocol Buffers
+
+## 👀 Debugging
+
+Append `--verbose=true` to the `same` command (before the subcommand).
+Set the `RUST_LOG` environment variable to `debug` or `trace`.
+
+```
+$ RUST_LOG=debug same --verbose [COMMAND]
+```
