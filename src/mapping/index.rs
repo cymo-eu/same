@@ -3,7 +3,7 @@ use multimap::MultiMap;
 use crate::mapping::fingerprint::{FingerPrint, ToFingerPrint};
 use crate::registry::{SchemaId, SchemaType, SchemaVersion, Subject, SubjectName};
 
-/// Schema registry index that allows for fast lookup of schema references by fingerprint or by schema id.
+/// Schema registry index that allows for fast lookup of schema references by fingerprint
 pub struct SchemaRegistryIndex {
     // Index by fingerprint
     fp: MultiMap<FingerPrint, SchemaRef>,
