@@ -1,11 +1,11 @@
+use std::env;
+use std::str::FromStr;
 use clap::Args;
 use keyring::Entry;
 use same::context::{Authentication, BasicAuthConfig, ContextRepository, LocalContextRepository};
 
 #[derive(Args, Debug)]
-pub struct AddCommand {
-
-}
+pub struct AddCommand {}
 
 enum AuthInput {
     Basic(BasicAuthInput),
@@ -19,7 +19,9 @@ pub struct BasicAuthInput {
 
 impl AddCommand {
     pub async fn run(&self) -> anyhow::Result<()> {
-        let url = dialoguer::Input::<String>::new()
+        // https://github.com/console-rs/dialoguer/issues/251
+
+        let url_input = dialoguer::Input::<String>::new()
             .with_prompt("Enter the url for the schema registry")
             .validate_with(|input: &String| -> Result<(), &str> {
                 if input.starts_with("http://") || input.starts_with("https://") {
@@ -27,8 +29,9 @@ impl AddCommand {
                 } else {
                     Err("The url must start with http:// or https://")
                 }
-            })
-            .interact_text()?;
+            });
+
+        let url = interact(url_input)?;
 
         let auth_selection = dialoguer::Select::new()
             .with_prompt("Select the authentication method")
@@ -39,9 +42,10 @@ impl AddCommand {
         let auth = match auth_selection {
             // Basic Auth
             0 => {
-                let username = dialoguer::Input::<String>::new()
-                    .with_prompt("Enter the username")
-                    .interact_text()?;
+                let username_input = dialoguer::Input::<String>::new()
+                    .with_prompt("Enter the username");
+
+                let username = interact(username_input)?;
 
                 let password = dialoguer::Password::new()
                     .with_prompt("Enter the password")
@@ -60,16 +64,17 @@ impl AddCommand {
         };
 
         // Ask user for name
-        let name = dialoguer::Input::<String>::new()
-            .with_prompt("Enter a name for the context")
-            .interact_text()?;
+        let name_input = dialoguer::Input::<String>::new()
+            .with_prompt("Enter a name for the context");
+
+        let name = interact(name_input)?;
 
         // Store credentials in keyring
         let auth = match auth {
             AuthInput::Basic(basic_auth) => {
                 let entry_name = store_in_keychain(&name, &basic_auth)?;
 
-                Authentication::Basic (BasicAuthConfig{
+                Authentication::Basic(BasicAuthConfig {
                     username: basic_auth.username,
                     basic_auth_entry_name: entry_name,
                 })
@@ -91,7 +96,34 @@ impl AddCommand {
 
         Ok(())
     }
+
 }
+
+
+///
+/// Interacts with the user to get input
+///
+/// If the user is in a tmux session, any character is allowed.
+/// If not, then only alphanumeric characters are allowed.
+///
+/// https://github.com/console-rs/dialoguer/issues/251
+fn interact<T>(
+    input: dialoguer::Input<T>
+) -> dialoguer::Result<T>
+    where
+        T: Clone + ToString + FromStr,
+        <T as FromStr>::Err: ToString {
+
+    match env::var("TMUX") {
+        Ok(value) if value.len() > 0 => {
+            input.interact()
+        }
+        _ => {
+            input.interact_text()
+        }
+    }
+}
+
 
 // TODO move to context module
 fn store_in_keychain(name: &String, basic_auth: &BasicAuthInput) -> anyhow::Result<String> {
