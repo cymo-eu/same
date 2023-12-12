@@ -71,8 +71,8 @@ These are ignored for now:
 
 ## 👀 Debugging
 
-Append `--verbose=true` to the `same` command (before the subcommand).
-Set the `RUST_LOG` environment variable to `debug` or `trace`.
+Append `--verbose` to the `same` command (before the subcommand).
+Adjust the `RUST_LOG` environment variable to `info`, `debug` or `trace`.
 
 ```
 $ RUST_LOG=debug same --verbose [COMMAND]

@@ -15,7 +15,7 @@ async fn main() -> anyhow::Result<()> {
 
     let opt = Opt::parse();
 
-    if opt.verbose.unwrap_or(false) {
+    if opt.verbose {
         configure_logger();
     }
 
@@ -49,8 +49,8 @@ struct Opt {
     #[command(subcommand)]
     pub command: Commands,
 
-    #[arg(long, short = 'v')]
-    pub verbose: Option<bool>
+    #[clap(short, long)]
+    pub verbose: bool,
 
 }
 
