@@ -43,7 +43,7 @@ impl Context {
         progress.set_length(subjects.len() as u64);
 
         for subject in subjects {
-            tracing::debug!("Downloading subject: {:?}", subject);
+            tracing::debug!("Downloading subject: {}", subject);
 
             let subject_cache_dir = mkdir_p(&cache_dir.join(subject.deref()))?;
 
@@ -53,7 +53,7 @@ impl Context {
                 .map_err(ContextError::SchemaRegistryError)?;
 
             for version in versions {
-                tracing::debug!("Downloading subject  {:?} version {:?}", subject, version);
+                tracing::debug!("Downloading subject  {} version {}", subject, version);
 
                 let message = format!(
                     "{:<8} / {:<12} / {:<3}",
@@ -92,7 +92,7 @@ impl Context {
                     serde_yaml::to_writer(file, &schema)
                         .map_err(ContextError::SerializationError)?;
                 } else {
-                    tracing::debug!("No schema found for subject {:?} version {:?}", subject, version)
+                    tracing::debug!("No schema found for subject {} version {}", subject, version)
                 }
             }
 
