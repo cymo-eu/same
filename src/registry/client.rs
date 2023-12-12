@@ -4,7 +4,7 @@ use reqwest_middleware::ClientWithMiddleware;
 use reqwest_tracing::TracingMiddleware;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
-use crate::registry::{ApiError, RegisteredSchema, RegisterSchema, SchemaVersion, Subject, SubjectName};
+use crate::registry::{ApiError, RegisteredSchema, RegisterSchema, Schema, SchemaId, SchemaType, SchemaVersion, Subject, SubjectName};
 
 #[derive(Debug)]
 pub struct SchemaRegistryClient {
@@ -84,6 +84,12 @@ impl SchemaRegistryClient {
     #[must_use]
     pub fn subject(&self) -> SubjectClient {
         SubjectClient { client: self }
+    }
+
+    /// Schema client
+    #[must_use]
+    pub fn schema(&self) -> SchemaClient {
+        SchemaClient { client: self }
     }
 
     async fn get<T>(&self, url: Url) -> Result<T, SchemaRegistryClientError>
@@ -166,6 +172,50 @@ async fn handle_error(response: Response) -> SchemaRegistryClientError {
     } else {
         SchemaRegistryClientError::SchemaRegistryError(body)
     }
+}
+
+pub struct SchemaClient<'client> {
+    pub(super) client: &'client SchemaRegistryClient,
+}
+
+impl SchemaClient<'_> {
+
+    #[tracing::instrument(skip(self))]
+    pub async fn get(
+        &self,
+        id: SchemaId,
+        subject: Option<&SubjectName>,
+    ) -> Result<Option<Schema>, SchemaRegistryClientError> {
+        let path = format!("schemas/ids/{id}");
+        let mut url = self.client.url.join(&path)?;
+        if let Some(subject) = subject {
+            let query = format!("subject={subject}");
+            url.set_query(Some(&query));
+        }
+        self.client.get_optional(url).await
+    }
+
+    #[tracing::instrument(skip(self))]
+    pub async fn get_schema(
+        &self,
+        id: SchemaId,
+        subject: Option<SubjectName>,
+    ) -> Result<Option<String>, SchemaRegistryClientError> {
+        let path = format!("schemas/ids/{id}/schema");
+        let mut url = self.client.url.join(&path)?;
+        if let Some(subject) = subject {
+            let query = format!("subject={subject}");
+            url.set_query(Some(&query));
+        }
+        self.client.get_optional(url).await
+    }
+
+    #[tracing::instrument(skip(self))]
+    pub async fn types(&self) -> Result<Vec<SchemaType>, SchemaRegistryClientError> {
+        let url = self.client.url.join("schemas/types")?;
+        self.client.get(url).await
+    }
+
 }
 
 /// The subject client

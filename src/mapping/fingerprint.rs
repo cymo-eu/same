@@ -2,9 +2,9 @@ use std::fmt::{Debug, Display};
 use std::hash::Hash;
 use std::ops::Deref;
 
-use avro_rs::rabin::Rabin;
-use avro_rs::Schema as AvroSchema;
-use avro_rs::schema::SchemaFingerprint;
+use apache_avro::rabin::Rabin;
+use apache_avro::Schema as AvroSchema;
+use apache_avro::schema::SchemaFingerprint;
 
 use crate::registry::{SchemaType, Subject};
 
@@ -19,7 +19,7 @@ pub enum FingerPrint {
 pub enum FingerPrintError {
 
     #[error(transparent)]
-    InvalidAvroSchema(#[from] avro_rs::Error),
+    InvalidAvroSchema(#[from] apache_avro::Error),
 
 }
 

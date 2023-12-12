@@ -11,8 +11,8 @@ pub struct SchemaRegistryIndex {
 
 #[derive(Debug, Clone, thiserror::Error)]
 pub enum SchemaRegistryIndexError {
-    #[error("Failed to calculate fingerprint for subject {0} with schema version: {1}")]
-    FailedToCalculateFingerprint(SubjectName, SchemaVersion),
+    #[error("Failed to calculate fingerprint for subject {0} with schema version: {1}: {2}")]
+    FailedToCalculateFingerprint(SubjectName, SchemaVersion, String),
     #[error("Failed to index schema: {0}")]
     IndexingError(String),
 }
@@ -102,9 +102,13 @@ impl TryFrom<&Subject> for SchemaRef {
             id: subject.id.clone(),
             schema_type: subject.schema_type.clone(),
             fingerprint: subject.to_fingerprint()
-                .map_err(|_| SchemaRegistryIndexError::FailedToCalculateFingerprint(
-                    subject.subject.clone(),
-                    subject.version.clone()))?,
+                .map_err(|err| {
+                    SchemaRegistryIndexError::FailedToCalculateFingerprint(
+                        subject.subject.clone(),
+                        subject.version.clone(),
+                        err.to_string()
+                    )
+                })?,
         })
     }
 }

@@ -35,7 +35,7 @@ anyhow = "1"
 
 dirs = "5.0"
 tempfile = "3.8.1"
-avro-rs = "0.13.0"
+apache-avro = "0.16.0"
 
 # command line
 dialoguer = { version = "0.11.0", features = ["password", "fuzzy-select"] }
