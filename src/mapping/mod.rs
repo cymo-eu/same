@@ -10,6 +10,7 @@ use crate::registry::{SchemaId};
 
 pub mod fingerprint;
 mod index;
+mod resolve;
 
 type IndexTask = JoinHandle<Result<SchemaRegistryIndex, SchemaRegistryIndexError>>;
 type IndexTaskResult = Result<SchemaRegistryIndex, SchemaRegistryIndexError>;
@@ -128,7 +129,7 @@ async fn index_context(
 ) -> IndexTaskResult {
     let mut idx = SchemaRegistryIndex::new();
     ctx.walk_schema_subjects(|subject| {
-        idx.index(&subject)
+        idx.index(&subject, ctx)
     })
         .await
         .map_err(|err| SchemaRegistryIndexError::IndexingError(err.to_string()))?;

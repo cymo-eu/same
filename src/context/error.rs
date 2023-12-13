@@ -10,7 +10,7 @@ pub enum ContextError {
     SerializationError(#[source] serde_yaml::Error),
 
     #[error("I/O error: {0}")]
-    IoError(#[source] std::io::Error),
+    IoError(#[from] std::io::Error),
 
     #[error("Failed to create cache directory")]
     CacheDirCreationFailed,

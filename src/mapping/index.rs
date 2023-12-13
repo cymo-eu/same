@@ -1,6 +1,7 @@
 use multimap::MultiMap;
 
-use crate::mapping::fingerprint::{FingerPrint, ToFingerPrint};
+use crate::mapping::fingerprint::{FingerPrint, SubjectFingerPrintBuilder, ToFingerPrint};
+use crate::mapping::resolve::ResolveSchemaReferences;
 use crate::registry::{SchemaId, SchemaType, SchemaVersion, Subject, SubjectName};
 
 /// Schema registry index that allows for fast lookup of schema references by fingerprint
@@ -49,9 +50,10 @@ impl SchemaRegistryIndex {
     pub fn index(
         &mut self,
         schema_subject: &Subject,
+        resolver: &impl ResolveSchemaReferences,
     ) -> Result<(), SchemaRegistryIndexError> {
         match schema_subject.schema_type {
-            SchemaType::Avro => self.index_avro(schema_subject),
+            SchemaType::Avro => self.index_avro(schema_subject, resolver),
             SchemaType::Protobuf => Ok(()),
             SchemaType::Json => Ok(()),
         }
@@ -60,8 +62,9 @@ impl SchemaRegistryIndex {
     fn index_avro(
         &mut self,
         schema_subject: &Subject,
+        resolver: &impl ResolveSchemaReferences,
     ) -> Result<(), SchemaRegistryIndexError> {
-        let schema_ref: SchemaRef = schema_subject.try_into()?;
+        let schema_ref: SchemaRef = to_schema_ref(schema_subject.clone(), resolver)?;
 
         self.insert(schema_ref);
 
@@ -83,54 +86,118 @@ impl SchemaRegistryIndex {
                 match schema_refs {
                     mut schema_refs if schema_refs.len() == 1 => {
                         Candidates::PerfectMatch(schema_refs.pop().unwrap())
-                    },
+                    }
                     schema_refs => Candidates::Multiple(schema_refs),
                 }
             })
             .unwrap_or(Candidates::None)
     }
-
 }
 
-impl TryFrom<&Subject> for SchemaRef {
-    type Error = SchemaRegistryIndexError;
+fn to_schema_ref(
+    subject: Subject,
+    resolver: &impl ResolveSchemaReferences,
+) -> Result<SchemaRef, SchemaRegistryIndexError> {
+    let fingerprint = SubjectFingerPrintBuilder::new(subject.clone())
+        .resolve_references_from(resolver)
+        .to_fingerprint()
+        .map_err(|err| {
+            SchemaRegistryIndexError::FailedToCalculateFingerprint(
+                subject.subject.clone(),
+                subject.version.clone(),
+                err.to_string(),
+            )
+        })?;
 
-    fn try_from(subject: &Subject) -> Result<Self, Self::Error> {
-        Ok(Self {
-            subject: subject.subject.clone(),
-            version: subject.version.clone(),
-            id: subject.id.clone(),
-            schema_type: subject.schema_type.clone(),
-            fingerprint: subject.to_fingerprint()
-                .map_err(|err| {
-                    SchemaRegistryIndexError::FailedToCalculateFingerprint(
-                        subject.subject.clone(),
-                        subject.version.clone(),
-                        err.to_string()
-                    )
-                })?,
-        })
-    }
+    Ok(SchemaRef {
+        subject: subject.subject.clone(),
+        version: subject.version.clone(),
+        id: subject.id.clone(),
+        schema_type: subject.schema_type.clone(),
+        fingerprint,
+    })
 }
+
 
 #[cfg(test)]
 mod tests {
-    use crate::mapping::fingerprint::ToFingerPrint;
-    use crate::mapping::index::{Candidates, SchemaRegistryIndex};
-    use crate::registry::{SchemaId, SchemaType, SchemaVersion, Subject};
+    use crate::mapping::fingerprint::{SubjectFingerPrintBuilder, ToFingerPrint};
+    use crate::mapping::index::{Candidates, SchemaRegistryIndex, to_schema_ref};
+    use crate::mapping::resolve::{Resolution, ResolutionError, ResolveSchemaReferences};
+    use crate::registry::{SchemaId, SchemaReference, SchemaType, SchemaVersion, Subject};
 
+    struct MockResolver {
+        mapping: Vec<(SchemaReference, Subject)>,
+    }
+
+    impl ResolveSchemaReferences for MockResolver {
+        fn resolve_schema_reference(&self, reference: &SchemaReference) -> Result<Resolution, ResolutionError> {
+            for (schema_ref, subject) in &self.mapping {
+                if schema_ref == reference {
+                    return Ok(Resolution::Resolved(schema_ref.clone(), subject.clone()));
+                }
+            }
+            Ok(Resolution::Unresolved(reference.clone()))
+        }
+    }
+
+    impl MockResolver {
+        fn new() -> Self {
+            Self {
+                mapping: Vec::new(),
+            }
+        }
+    }
 
     #[test]
     fn find_avro_schema_by_fingerprint() {
         let mut index = SchemaRegistryIndex::new();
-        let schema_subject = &avrocado_subject();
+        let schema_subject = avrocado_subject();
+        let fingerprint = SubjectFingerPrintBuilder::new(schema_subject.clone())
+            .to_fingerprint()
+            .unwrap();
 
-        index.index(schema_subject).unwrap();
+        index.index(&schema_subject, &MockResolver::new()).unwrap();
 
-        let expected: Candidates = Candidates::PerfectMatch(schema_subject.try_into().unwrap());
+        let schema_ref = to_schema_ref(schema_subject, &MockResolver::new()).unwrap();
+        let expected: Candidates = Candidates::PerfectMatch(schema_ref);
 
         assert_eq!(
-            index.find_by_fingerprint(&schema_subject.to_fingerprint().unwrap()),
+            index.find_by_fingerprint(&fingerprint),
+            expected);
+    }
+
+    #[test]
+    fn find_avro_schema_with_references_by_fingerprint() {
+        // Set up references
+        let mut resolver = MockResolver::new();
+        resolver.mapping.push((SchemaReference {
+            name: "Product".parse().unwrap(),
+            subject: "product".to_string(),
+            version: "5".parse::<SchemaVersion>().unwrap(),
+        }, product_subject()));
+        resolver.mapping.push((SchemaReference {
+            name: "Customer".parse().unwrap(),
+            subject: "customer".to_string(),
+            version: "6".parse::<SchemaVersion>().unwrap(),
+        }, customer_subject()));
+
+        let mut index = SchemaRegistryIndex::new();
+
+        let schema_subject = order_subject();
+
+        let fingerprint = SubjectFingerPrintBuilder::new(schema_subject.clone())
+            .resolve_references_from(&resolver)
+            .to_fingerprint()
+            .unwrap();
+
+        index.index(&schema_subject, &resolver).unwrap();
+
+        let schema_ref = to_schema_ref(schema_subject, &resolver).unwrap();
+        let expected: Candidates = Candidates::PerfectMatch(schema_ref);
+
+        assert_eq!(
+            index.find_by_fingerprint(&fingerprint),
             expected);
     }
 
@@ -138,9 +205,12 @@ mod tests {
     fn index_protobuf_schema_is_ignored() {
         let mut index = SchemaRegistryIndex::new();
         let schema_subject = potatobuf_subject();
-        index.index(&schema_subject).unwrap();
+        let fingerprint = SubjectFingerPrintBuilder::new(schema_subject.clone())
+            .to_fingerprint()
+            .unwrap();
+        index.index(&schema_subject, &MockResolver::new()).unwrap();
 
-        let results = index.find_by_fingerprint(&schema_subject.to_fingerprint().unwrap());
+        let results = index.find_by_fingerprint(&fingerprint);
 
         assert_eq!(results, Candidates::None);
     }
@@ -149,10 +219,13 @@ mod tests {
     fn index_json_schema_is_ignored() {
         let mut index = SchemaRegistryIndex::new();
         let schema_subject = jacksonfruit_subject();
+        let fingerprint = SubjectFingerPrintBuilder::new(schema_subject.clone())
+            .to_fingerprint()
+            .unwrap();
 
-        index.index(&schema_subject).unwrap();
+        index.index(&schema_subject, &MockResolver::new()).unwrap();
 
-        let results = index.find_by_fingerprint(&schema_subject.to_fingerprint().unwrap());
+        let results = index.find_by_fingerprint(&fingerprint);
 
         assert_eq!(results, Candidates::None);
     }
@@ -164,6 +237,7 @@ mod tests {
             id: "11".parse::<SchemaId>().unwrap(),
             schema_type: SchemaType::Avro,
             schema: avocado_schema().to_string(),
+            references: vec![],
         }
     }
 
@@ -174,6 +248,7 @@ mod tests {
             id: "22".parse::<SchemaId>().unwrap(),
             schema_type: SchemaType::Protobuf,
             schema: potato_schema().to_string(),
+            references: vec![],
         }
     }
 
@@ -184,8 +259,107 @@ mod tests {
             id: "33".parse::<SchemaId>().unwrap(),
             schema_type: SchemaType::Json,
             schema: jackfruit_schema().to_string(),
+            references: vec![],
         }
     }
+
+    fn order_subject() -> Subject {
+        Subject {
+            subject: "schema_reference".parse().unwrap(),
+            version: "4".parse::<SchemaVersion>().unwrap(),
+            id: "44".parse::<SchemaId>().unwrap(),
+            schema_type: SchemaType::Avro,
+            schema: order_schema().to_string(),
+            references: vec![
+                SchemaReference {
+                    name: "Product".parse().unwrap(),
+                    subject: "product".to_string(),
+                    version: "5".parse::<SchemaVersion>().unwrap(),
+                },
+                SchemaReference {
+                    name: "Customer".parse().unwrap(),
+                    subject: "customer".to_string(),
+                    version: "6".parse::<SchemaVersion>().unwrap(),
+                },
+            ],
+        }
+    }
+
+
+    fn product_subject() -> Subject {
+        Subject {
+            subject: "product".parse().unwrap(),
+            version: "5".parse::<SchemaVersion>().unwrap(),
+            id: "55".parse::<SchemaId>().unwrap(),
+            schema_type: SchemaType::Avro,
+            schema: product_schema().to_string(),
+            references: vec![],
+        }
+    }
+
+    fn customer_subject() -> Subject {
+        Subject {
+            subject: "customer".parse().unwrap(),
+            version: "6".parse::<SchemaVersion>().unwrap(),
+            id: "66".parse::<SchemaId>().unwrap(),
+            schema_type: SchemaType::Avro,
+            schema: customer_schema().to_string(),
+            references: vec![],
+        }
+    }
+
+    fn order_schema() -> &'static str {
+        r#"
+            {
+                "type": "record",
+                "name": "Order",
+                "namespace": "io.kannika",
+                "fields": [
+                    {
+                        "name": "product",
+                        "type": "io.kannika.Product"
+                    },
+                    {
+                        "name": "customer",
+                        "type": "io.kannika.Customer"
+                    }
+                ]
+            }
+            "#
+    }
+
+    fn product_schema() -> &'static str {
+        r#"
+            {
+                "type": "record",
+                "name": "Product",
+                "namespace": "io.kannika",
+                "fields": [
+                    {
+                        "name": "productName",
+                        "type": "string"
+                    }
+                ]
+            }
+            "#
+    }
+
+    fn customer_schema() -> &'static str {
+        r#"
+            {
+                "type": "record",
+                "name": "Customer",
+                "namespace": "io.kannika",
+                "fields": [
+                    {
+                        "name": "customerName",
+                        "type": "string"
+                    }
+                ]
+            }
+            "#
+    }
+
 
     fn potato_schema() -> &'static str {
         r#"

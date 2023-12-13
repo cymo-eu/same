@@ -4,16 +4,7 @@ use crate::registry::{SchemaId, SchemaReference, SchemaType, SchemaVersion};
 
 pub use self::name::*;
 
-/// A subject an associated version
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-pub struct SubjectVersion {
-    /// Name of the subject
-    pub subject: SubjectName,
-    /// Version of the returned schema
-    pub version: SchemaVersion,
-}
-
-/// A subject
+/// A schema
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Subject {
@@ -28,6 +19,8 @@ pub struct Subject {
     pub schema_type: SchemaType,
     /// The schema
     pub schema: String,
+    #[serde(skip_serializing_if = "Vec::is_empty", default)]
+    pub references: Vec<SchemaReference>,
 }
 
 /// Register a schema
@@ -73,6 +66,7 @@ mod tests {
             id: "2".parse::<SchemaId>().unwrap(),
             schema_type: crate::registry::SchemaType::Protobuf,
             schema: "schema".to_owned(),
+            references: vec![],
         });
     }
 

@@ -3,7 +3,7 @@ use std::ops::Deref;
 use std::path::{Path, PathBuf};
 use indicatif::ProgressBar;
 use crate::context::{Context, ContextError};
-use crate::registry::{ListSubjectsOptions, Subject};
+use crate::registry::{ListSubjectsOptions, SchemaReference, Subject};
 use crate::registry::GetSchemaRegistryClient;
 
 #[derive(Debug, Clone)]
@@ -13,7 +13,9 @@ pub struct DownloadAllSchemaFilesOpts {
 }
 
 impl Context {
-    pub async fn cache_dir(&self) -> Result<PathBuf, ContextError> {
+
+    /// Returns the path to the cache directory for this context.
+    pub fn cache_dir(&self) -> Result<PathBuf, ContextError> {
         let dir = dirs::cache_dir()
             .map(|mut path| {
                 path.push("io.kannika.same");
@@ -25,12 +27,14 @@ impl Context {
         mkdir_p(&dir)
     }
 
+    /// Downloads all schemas from the schema registry and stores them in the cache directory.
+    // TODO: Replace progress bar instrumentation with a probe
     pub async fn download_all_schema_files(
         &self,
         progress: &mut ProgressBar,
         opts: DownloadAllSchemaFilesOpts,
     ) -> Result<(), ContextError> {
-        let cache_dir = self.cache_dir().await?;
+        let cache_dir = self.cache_dir()?;
         let client = self.get_client()?;
 
         let force_update = opts.ignore_cache.unwrap_or(false);
@@ -102,26 +106,22 @@ impl Context {
         Ok(())
     }
 
+    /// Walks all schema subjects in the cache directory and calls the given function for each subject.
     pub async fn walk_schema_subjects<T, E: Display>(
         &self,
         mut f: impl FnMut(Subject) -> Result<T, E>,
     ) -> Result<(), ContextError> {
-        let cache_dir = self.cache_dir().await?;
+        let cache_dir = self.cache_dir()?;
 
-        for entry in std::fs::read_dir(cache_dir)
-            .map_err(ContextError::IoError)? {
-            let entry = entry
-                .map_err(ContextError::IoError)?;
+        for entry in std::fs::read_dir(cache_dir)? {
+            let entry = entry?;
             let path = entry.path();
             if path.is_dir() {
-                for entry in std::fs::read_dir(path)
-                    .map_err(ContextError::IoError)? {
-                    let entry = entry
-                        .map_err(ContextError::IoError)?;
+                for entry in std::fs::read_dir(path)? {
+                    let entry = entry?;
                     let path = entry.path();
                     if path.is_file() {
-                        let file = std::fs::File::open(&path)
-                            .map_err(ContextError::IoError)?;
+                        let file = std::fs::File::open(&path)?;
 
                         let subject: Subject = serde_yaml::from_reader(file)
                             .map_err(ContextError::DeserializationError)?;
@@ -136,6 +136,7 @@ impl Context {
         Ok(())
     }
 
+    /// Returns the number of schema subjects in the cache directory.
     pub async fn count_subjects(&self) -> Result<usize, ContextError> {
         let mut count = 0;
 
@@ -145,6 +146,25 @@ impl Context {
         }).await?;
 
         Ok(count)
+    }
+
+    pub fn get_subject(&self, reference: &SchemaReference) -> Result<Option<Subject>, ContextError> {
+        let cache_dir = self.cache_dir()?;
+
+        let subject_cache_dir = cache_dir.join(reference.subject.deref());
+
+        let schema_file = subject_cache_dir.join(reference.version.to_string());
+
+        if schema_file.exists() {
+            let file = std::fs::File::open(schema_file)?;
+
+            let subject: Subject = serde_yaml::from_reader(file)
+                .map_err(ContextError::DeserializationError)?;
+
+            Ok(Some(subject))
+        } else {
+            Ok(None)
+        }
     }
 }
 
