@@ -69,7 +69,10 @@ impl SchemaRegistryClient {
             ACCEPT,
             HeaderValue::from_static("application/vnd.schemaregistry.v1+json"),
         );
-        let reqwest_client = Client::builder().default_headers(headers).build()?;
+        let reqwest_client = Client::builder()
+            .default_headers(headers)
+            .tcp_keepalive(Some(std::time::Duration::from_secs(60)))
+            .build()?;
         let client = reqwest_middleware::ClientBuilder::new(reqwest_client)
             .with(TracingMiddleware::default())
             .build();
