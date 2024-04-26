@@ -48,7 +48,7 @@ e.g. in a CI/CD pipeline.
 
 Example:
 
-```
+```yaml
 registries:
 - name: source
   url: https://aaaa-1234.europe-west3.gcp.confluent.cloud
@@ -62,12 +62,25 @@ registries:
 
 This can then be used as follows:
 
-```
+```sh
 $ same map \ 
   --from source \
   --to sink \ 
   -o mapping.yaml  \
   --registries /path/to/registries.yaml
+```
+
+Running this command with Docker can be done as follows,
+with the current working directory mounted to `/usr/var/same`:
+
+```sh
+$ docker run \
+  -v .:/usr/var/same \
+  quay.io/kannika/same:0.1.0 map \ 
+  --from=source \
+  --to=sink \
+  -o /usr/var/same/mapping.yaml \ 
+  --registries /usr/var/same/registries.yaml
 ```
 
 ## 🔎 Where are my configurations and mappings stored?
