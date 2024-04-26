@@ -43,21 +43,26 @@ pub enum SchemaRegistryClientError {
 
 impl SchemaRegistryClient {
 
+    fn parse_url(url: &str) -> Result<Url, SchemaRegistryClientError> {
+        if !url.starts_with("http://") && !url.starts_with("https://") {
+            return SchemaRegistryClient::parse_url(format!("https://{}", url).as_str());
+        }
+        Url::parse(url).map_err(|_| SchemaRegistryClientError::InvalidUrl(url.to_string()))
+    }
+
     pub fn new(url: &str) -> Result<Self, SchemaRegistryClientError> {
-        let url = Url::parse(url)
-            .map_err(|_| SchemaRegistryClientError::InvalidUrl(url.to_string()))?;
+        let url = Self::parse_url(url)?;
 
         Self::build_default(url)
     }
 
     pub fn new_with_basic_auth(url: &str, username: &str, password: &str) -> Result<Self, SchemaRegistryClientError> {
-        let mut url = reqwest::Url::parse(url)
+        let mut url = Self::parse_url(url)?;
+
+        url.set_username(username)
             .map_err(|_| SchemaRegistryClientError::InvalidUrl(url.to_string()))?;
 
-        url.set_username(username.clone())
-            .map_err(|_| SchemaRegistryClientError::InvalidUrl(url.to_string()))?;
-
-        url.set_password(Some(password.clone()))
+        url.set_password(Some(password))
             .map_err(|_| SchemaRegistryClientError::InvalidUrl(url.to_string()))?;
 
         Self::build_default(url)

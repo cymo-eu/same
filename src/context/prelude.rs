@@ -22,23 +22,23 @@ pub struct SchemaRegistryConfig {
     pub auth: Authentication,
 }
 
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct BasicAuth {
-}
-
 #[derive(Default, Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(untagged)]
 pub enum Authentication {
     #[default]
     None,
 
-    Basic(BasicAuthConfig),
+    Keychain(KeychainConfig),
+
+    BasicAuth {
+        username: String,
+        password: String,
+    },
 }
 
 #[derive(Default, Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct BasicAuthConfig {
+pub struct KeychainConfig {
     pub username: String,
     pub basic_auth_entry_name: String,
 }

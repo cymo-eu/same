@@ -2,7 +2,7 @@ use std::env;
 use std::str::FromStr;
 use clap::Args;
 use keyring::Entry;
-use same::context::{Authentication, BasicAuthConfig, ContextRepository, LocalContextRepository};
+use same::context::{Authentication, KeychainConfig, ContextRepository, LocalContextRepository};
 
 #[derive(Args, Debug)]
 pub struct AddCommand {}
@@ -74,7 +74,7 @@ impl AddCommand {
             AuthInput::Basic(basic_auth) => {
                 let entry_name = store_in_keychain(&name, &basic_auth)?;
 
-                Authentication::Basic(BasicAuthConfig {
+                Authentication::Keychain(KeychainConfig {
                     username: basic_auth.username,
                     basic_auth_entry_name: entry_name,
                 })

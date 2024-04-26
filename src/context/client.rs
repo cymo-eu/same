@@ -8,7 +8,7 @@ impl crate::registry::GetSchemaRegistryClient for Context {
             Authentication::None => {
                 SchemaRegistryClient::new(self.registry.url.as_str())
             }
-            Authentication::Basic(basic) => {
+            Authentication::Keychain(basic) => {
                 let entry = keyring::Entry::new(
                     basic.basic_auth_entry_name.as_str(),
                     basic.username.as_str())
@@ -21,6 +21,12 @@ impl crate::registry::GetSchemaRegistryClient for Context {
                 SchemaRegistryClient::new_with_basic_auth(
                     self.registry.url.as_str(),
                     basic.username.as_str(),
+                    password.as_str())
+            },
+            Authentication::BasicAuth { username, password} => {
+                SchemaRegistryClient::new_with_basic_auth(
+                    self.registry.url.as_str(),
+                    username.as_str(),
                     password.as_str())
             }
         }

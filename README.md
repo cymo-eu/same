@@ -38,6 +38,37 @@ Options:
 - `--to`: The name of the context to map to (required).
 - `-o`, `--output`: The output file to write the mapping to (optional).
 - `-U`, `--force-update`: Force update the schemas in the cache (optional, default false).
+- `--registries`: The config file containing the schema registries (optional).
+
+***Mapping registries using a file***
+
+It is possible to pass the schema registries as a file.
+This is useful when you are not able to configure the schema registries using the `same add` command,
+e.g. in a CI/CD pipeline.
+
+Example:
+
+```
+registries:
+- name: source
+  url: https://aaaa-1234.europe-west3.gcp.confluent.cloud
+  username: <API KEY> # Optional
+  password: <API SECRET> # Optional
+- name: sink
+  url: https://bbbb-4567.europe-west3.gcp.confluent.cloud
+  username: <API KEY> # Optional
+  password: <API SECRET> # Optional
+```
+
+This can then be used as follows:
+
+```
+$ same map \ 
+  --from source \
+  --to sink \ 
+  -o mapping.yaml  \
+  --registries /path/to/registries.yaml
+```
 
 ## 🔎 Where are my configurations and mappings stored?
 

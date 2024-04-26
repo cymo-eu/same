@@ -6,8 +6,9 @@ use indicatif::{ProgressState, ProgressStyle};
 use tokio::task::JoinHandle;
 use std::io::{Write};
 use dialoguer::console::Emoji;
+use serde::{Deserialize, Serialize};
 
-use same::context::{Context, ContextError, ContextName, ContextRepository, DownloadAllSchemaFilesOpts, LocalContextRepository};
+use same::context::{Authentication, Context, ContextError, ContextName, ContextRepository, DownloadAllSchemaFilesOpts, LocalContextRepository, SchemaRegistryConfig};
 use same::mapping::map_schemas;
 
 use crate::map::MapError::ContextNotFound;
@@ -25,41 +26,86 @@ pub struct MapCommand {
     output: Option<String>,
     /// Ignore the local cache and download all schemas again
     #[arg(long, short = 'U')]
-    force_update: bool
+    force_update: bool,
+
+    #[arg(long)]
+    // File containing a list of registries to use for mapping
+    registries: Option<String>
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct Registries {
+    #[serde(default)]
+    registries: Vec<RegistryConfig>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct RegistryConfig {
+    name: String,
+    url: String,
+    username: Option<String>,
+    password: Option<String>,
+}
+
+impl TryFrom<RegistryConfig> for Context {
+
+    type Error = MapError;
+
+    fn try_from(config: RegistryConfig) -> Result<Self, Self::Error> {
+        let auth = if let (Some(username), Some(password)) = (config.username, config.password) {
+           Authentication::BasicAuth {
+                username,
+                password,
+           }
+        } else {
+            Authentication::None
+        };
+
+        Ok(Context {
+            name: config.name.parse().unwrap(),
+            registry: SchemaRegistryConfig {
+                url: config.url,
+                auth,
+            },
+        })
+    }
+
+}
+
+impl Registries {
+    fn get(&self, name: &str) -> Result<RegistryConfig, MapError> {
+        self.registries.iter()
+            .find(|r| r.name == name)
+            .cloned()
+            .ok_or_else(|| MapError::ContextNotFound(name.into()))
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
-enum MapError {
+pub enum MapError {
     #[error("Context not found: {0}")]
     ContextNotFound(ContextName),
 
     #[error("IO error: {0}")]
     IoError(#[from] std::io::Error),
 
+    #[error("Context error: {0}")]
+    ContextError(#[from] ContextError),
+
+    #[error("Serde error: {0}")]
+    SerdeError(#[from] serde_yaml::Error),
+
 }
 
 impl MapCommand {
 
     pub async fn run(&self) -> anyhow::Result<()> {
-        let repo = LocalContextRepository::get();
 
-        let from: ContextName = self.from.clone().into();
-        let to: ContextName = self.to.clone().into();
-
-        let from_ctx = Arc::new(
-            repo.find_context(&from)?
-                .ok_or_else(|| ContextNotFound(from))?
-        );
-
-        let to_ctx = Arc::new(
-            repo.find_context(&self.to.clone().into())?
-                .ok_or_else(|| ContextNotFound(to))?
-        );
+        let (from_ctx, to_ctx) = self.get_contexts()?;
 
         if from_ctx == to_ctx {
-            return Err(anyhow::anyhow!("Cannot map a context to itself"));
+            return Err(anyhow::anyhow!("Cannot map a registry to itself"));
         }
-
 
         step(1, Emoji("🚚 ", ""),"Downloading schemas...");
         let opts = DownloadAllSchemaFilesOpts {
@@ -81,7 +127,31 @@ impl MapCommand {
         Ok(())
     }
 
-
+    fn get_contexts(&self) -> Result<(Arc<Context>, Arc<Context>), MapError> {
+        match self.registries {
+            Some(ref path) => {
+                let file = std::fs::File::open(path)?;
+                let registries: Registries = serde_yaml::from_reader(file)?;
+                let from = registries.get(&self.from)?;
+                let to = registries.get(&self.to)?;
+                Ok((Arc::new(from.try_into()?), Arc::new(to.try_into()?)))
+            },
+            None => {
+                let repo = LocalContextRepository::get();
+                let from: ContextName = self.from.clone().into();
+                let to: ContextName = self.to.clone().into();
+                let from_ctx = Arc::new(
+                    repo.find_context(&from)?
+                        .ok_or_else(|| ContextNotFound(from))?
+                );
+                let to_ctx = Arc::new(
+                    repo.find_context(&self.to.clone().into())?
+                        .ok_or_else(|| ContextNotFound(to))?
+                );
+                Ok((from_ctx, to_ctx))
+            }
+        }
+    }
 }
 
 impl MapCommand {

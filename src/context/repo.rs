@@ -164,7 +164,7 @@ impl Config {
 
 #[cfg(test)]
 mod tests {
-    use crate::context::{Authentication, BasicAuthConfig, SchemaRegistryConfig};
+    use crate::context::{Authentication, KeychainConfig, SchemaRegistryConfig};
 
     use super::*;
 
@@ -247,8 +247,8 @@ mod tests {
     fn data_land_registry() -> SchemaRegistryConfig {
         SchemaRegistryConfig {
             url: "http://dataland:8081".into(),
-            auth: Authentication::Basic(
-                BasicAuthConfig {
+            auth: Authentication::Keychain(
+                KeychainConfig {
                     username: "alice".to_owned(),
                     basic_auth_entry_name: "kannika-same-dataland".into(),
                 }),
