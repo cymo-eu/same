@@ -1,4 +1,5 @@
 use std::fmt::Display;
+use std::fs;
 use std::ops::Deref;
 use std::path::{Path, PathBuf};
 use indicatif::ProgressBar;
@@ -10,6 +11,11 @@ use crate::registry::GetSchemaRegistryClient;
 pub struct DownloadAllSchemaFilesOpts {
     // Force update of all schemas
     pub ignore_cache: Option<bool>
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct WalkSchemaSubjectsOpts {
+    pub ignore_errors: bool,
 }
 
 impl Context {
@@ -110,42 +116,39 @@ impl Context {
     pub async fn walk_schema_subjects<T, E: Display>(
         &self,
         mut f: impl FnMut(Subject) -> Result<T, E>,
+        opts: WalkSchemaSubjectsOpts,
     ) -> Result<(), ContextError> {
         let cache_dir = self.cache_dir()?;
 
-        for entry in std::fs::read_dir(cache_dir)? {
+        for entry in fs::read_dir(cache_dir)? {
             let entry = entry?;
             let path = entry.path();
             if path.is_dir() {
-                for entry in std::fs::read_dir(path)? {
+                for entry in fs::read_dir(path)? {
                     let entry = entry?;
                     let path = entry.path();
                     if path.is_file() {
-                        let file = std::fs::File::open(&path)?;
+                        let file = fs::File::open(&path)?;
 
-                        let subject: Subject = serde_yaml::from_reader(file)
-                            .map_err(ContextError::DeserializationError)?;
-
-                        f(subject)
-                            .map_err(|e| ContextError::WalkError(e.to_string()))?;
+                        match serde_yaml::from_reader(&file) {
+                            Ok(subject) => {
+                                f(subject)
+                                    .map_err(|e| ContextError::WalkError(e.to_string()))?;
+                            },
+                            Err(e) => {
+                                if opts.ignore_errors {
+                                    tracing::warn!("Error reading subject file {:?}: {}", file, e);
+                                } else {
+                                    return Err(ContextError::DeserializationError(e));
+                                }
+                            }
+                        }
                     }
                 }
             }
         }
 
         Ok(())
-    }
-
-    /// Returns the number of schema subjects in the cache directory.
-    pub async fn count_subjects(&self) -> Result<usize, ContextError> {
-        let mut count = 0;
-
-        self.walk_schema_subjects::<(), ContextError>(|_| {
-            count += 1;
-            Ok(())
-        }).await?;
-
-        Ok(count)
     }
 
     pub fn get_subject(&self, reference: &SchemaReference) -> Result<Option<Subject>, ContextError> {
@@ -156,7 +159,7 @@ impl Context {
         let schema_file = subject_cache_dir.join(reference.version.to_string());
 
         if schema_file.exists() {
-            let file = std::fs::File::open(schema_file)?;
+            let file = fs::File::open(schema_file)?;
 
             let subject: Subject = serde_yaml::from_reader(file)
                 .map_err(ContextError::DeserializationError)?;
@@ -171,7 +174,7 @@ impl Context {
 fn mkdir_p<P: AsRef<Path>>(path: P) -> Result<PathBuf, ContextError> {
     let path = path.as_ref();
 
-    std::fs::create_dir_all(path)
+    fs::create_dir_all(path)
         .map_err(ContextError::IoError)?;
 
     Ok(path.to_path_buf())

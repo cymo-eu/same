@@ -1,3 +1,4 @@
+use std::sync::Arc;
 use crate::context::{Context, ContextError};
 use crate::registry::{SchemaReference, Subject};
 
@@ -7,7 +8,6 @@ pub trait ResolveSchemaReferences {
 
 #[derive(Debug, thiserror::Error)]
 pub enum ResolutionError {
-
     #[error(transparent)]
     ContextError(#[from] ContextError),
 
@@ -25,15 +25,23 @@ pub enum Resolution {
 }
 
 impl ResolveSchemaReferences for Context {
-
     fn resolve_schema_reference(
         &self,
-        reference: &SchemaReference
+        reference: &SchemaReference,
     ) -> Result<Resolution, ResolutionError> {
         match self.get_subject(reference) {
             Ok(Some(schema)) => Ok(Resolution::Resolved(reference.clone(), schema)),
             Ok(None) => Ok(Resolution::Unresolved(reference.clone())),
             Err(err) => Err(err.into()),
         }
+    }
+}
+
+impl<T> ResolveSchemaReferences for Arc<T>
+where
+    T: ResolveSchemaReferences,
+{
+    fn resolve_schema_reference(&self, reference: &SchemaReference) -> Result<Resolution, ResolutionError> {
+        self.as_ref().resolve_schema_reference(reference)
     }
 }

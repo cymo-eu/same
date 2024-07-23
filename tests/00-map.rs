@@ -3,11 +3,9 @@ use same::registry::{DeleteVersionOptions, ListSubjectsOptions, NewVersionOption
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn map() -> anyhow::Result<()> {
     let client = SchemaRegistryClient::new("http://localhost:8081")?;
-
     delete_all_subjects(&client).await?;
     register_user_schemas(&client).await?;
     register_image_event_schemas(&client).await?;
-
     Ok(())
 }
 
