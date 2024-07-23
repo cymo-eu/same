@@ -9,7 +9,7 @@ use dialoguer::console::Emoji;
 use serde::{Deserialize, Serialize};
 
 use same::context::{Authentication, Context, ContextError, ContextName, ContextRepository, DownloadAllSchemaFilesOpts, LocalContextRepository, SchemaRegistryConfig};
-use same::mapping::map_schemas;
+use same::mapping::{map_schemas, MapSchemasOpts};
 
 use crate::map::MapError::ContextNotFound;
 
@@ -24,9 +24,19 @@ pub struct MapCommand {
     /// Output file. Optional; if not specified, output is written to stdout
     #[arg(long, short = 'o')]
     output: Option<String>,
+
     /// Ignore the local cache and download all schemas again
     #[arg(long, short = 'U')]
     force_update: bool,
+
+    /// Work offline, do not download schemas
+    #[arg(long)]
+    offline: bool,
+
+    /// Ignore errors when indexing schemas.
+    /// If this flag is set, the command will continue to index schemas even if some schemas fail to map
+    #[arg(long)]
+    ignore_indexing_errors: bool,
 
     #[arg(long)]
     // File containing a list of registries to use for mapping
@@ -107,19 +117,26 @@ impl MapCommand {
             return Err(anyhow::anyhow!("Cannot map a registry to itself"));
         }
 
-        step(1, Emoji("🚚 ", ""),"Downloading schemas...");
-        let opts = DownloadAllSchemaFilesOpts {
-            ignore_cache: Some(self.force_update)
-        };
-        download_schemas(&from_ctx, &to_ctx, opts).await?;
+        if self.offline {
+            step(1, Emoji("🚚 ", ""),"Working offline, using locally cached schemas...");
+        } else {
+            step(1, Emoji("🚚 ", ""), "Downloading schemas...");
+            let opts = DownloadAllSchemaFilesOpts {
+                ignore_cache: Some(self.force_update)
+            };
+            download_schemas(&from_ctx, &to_ctx, opts).await?;
+        }
 
         step(2, Emoji("🔎 ", ""),"Mapping schemas...");
         let mapping = map_schemas(
             from_ctx.clone(),
             to_ctx.clone(),
+            MapSchemasOpts {
+                ignore_indexing_errors: self.ignore_indexing_errors,
+            },
         ).await?;
 
-        step(3, Emoji("🖨️", ""),"Brrrr...");
+        step(3, Emoji("🖨️", ""),"Printing mapping...");
         serde_yaml::to_writer(self.output(), &mapping)?;
 
         step(4, Emoji("💫", ""),"Done");

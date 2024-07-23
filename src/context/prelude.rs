@@ -5,7 +5,7 @@ use std::str::FromStr;
 #[derive(Debug, Clone, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub struct ContextName(pub String);
 
-/// SameContext represents a connection and additional settings for a schema registry
+/// Context represents a connection and additional settings for a schema registry
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Context {
     /// The name of the context
@@ -13,6 +13,7 @@ pub struct Context {
 
     /// The configuration for the schema registry
     pub registry: SchemaRegistryConfig,
+
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
