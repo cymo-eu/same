@@ -1,0 +1,18 @@
+{
+  "name": "Boat",
+  "namespace": "io.kannika",
+  "type": "record",
+  "fields": [
+    {
+      "name": "boatId",
+      "default": null,
+      "type": [
+        "null",
+        {
+          "logicalType": "uuid",
+          "type": "string"
+        }
+      ]
+    }
+  ]
+}

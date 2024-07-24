@@ -39,6 +39,8 @@ Options:
 - `-o`, `--output`: The output file to write the mapping to (optional).
 - `-U`, `--force-update`: Force update the schemas in the cache (optional, default false).
 - `--registries`: The config file containing the schema registries (optional).
+- `--offline`: Run in offline mode, do not download schemas from the registries (optional, default false).
+- `--ignore-indexing-errors`: Ignore indexing errors (optional, default false).
 
 ***Mapping registries using a file***
 

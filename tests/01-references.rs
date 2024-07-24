@@ -1,22 +1,25 @@
 use std::sync::Arc;
+use common::TestEnv;
 use same::context::{Authentication, DownloadAllSchemaFilesOpts, EmptyDownloadProbe};
 use same::mapping::{map_schemas, MapSchemasOpts};
-use crate::common::TestEnv;
 
 mod common;
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn test_map_schemas() -> anyhow::Result<()> {
+async fn test_references() -> anyhow::Result<()> {
     common::setup_logs();
 
     let env = TestEnv::new_remote("http://localhost:8081")?;
+    let customer_subject = env.register_avro_schema("customer", include_str!("assets/avro/ref/customer.avsc")).await?;
+    let product_subject = env.register_avro_schema("product", include_str!("assets/avro/ref/product.avsc")).await?;
 
-    env.delete_all_subjects().await?;
-    let _ = env.register_avro_schema("user", include_str!("assets/avro/user/v1.avsc")).await?;
-    let _ = env.register_avro_schema("user", include_str!("assets/avro/user/v2.avsc")).await?;
-
-    let _ = env.register_protobuf_schema("image", include_str!("assets/proto/image/v1.proto")).await?;
-    let _ = env.register_protobuf_schema("image", include_str!("assets/proto/image/v2.proto")).await?;
+    let _order_subject = env.register_avro_schema_with_references(
+        "order",
+        include_str!("assets/avro/ref/order.avsc"),
+        vec![
+            reference!("Customer", customer_subject),
+            reference!("Product", product_subject),
+        ]).await?;
 
     let from = env.mk_context("from", Authentication::None)?;
     let to = env.mk_context("to", Authentication::None)?;
@@ -24,8 +27,8 @@ async fn test_map_schemas() -> anyhow::Result<()> {
     from.download_all_schema_files(DownloadAllSchemaFilesOpts::<EmptyDownloadProbe>::default()).await?;
     to.download_all_schema_files(DownloadAllSchemaFilesOpts::<EmptyDownloadProbe>::default()).await?;
 
-    let mapping = map_schemas(
-        Arc::new(from), Arc::new(to), MapSchemasOpts::default()).await?;
+    let mapping = map_schemas(Arc::new(from), Arc::new(to),
+                              MapSchemasOpts::default()).await?;
 
     println!("{}", serde_yaml::to_string(&mapping)?);
 

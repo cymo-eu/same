@@ -1,15 +1,18 @@
 use std::{fmt, io};
+use std::io::Write;
+use std::ops::Deref;
 use std::sync::Arc;
 use std::time::Duration;
-use clap::Args;
-use indicatif::{ProgressState, ProgressStyle};
-use tokio::task::JoinHandle;
-use std::io::{Write};
-use dialoguer::console::Emoji;
-use serde::{Deserialize, Serialize};
 
-use same::context::{Authentication, Context, ContextError, ContextName, ContextRepository, DownloadAllSchemaFilesOpts, LocalContextRepository, SchemaRegistryConfig};
+use clap::Args;
+use dialoguer::console::Emoji;
+use indicatif::{ProgressState, ProgressStyle};
+use serde::{Deserialize, Serialize};
+use tokio::task::JoinHandle;
+
+use same::context::{Authentication, Context, ContextError, ContextName, ContextRepository, DownloadAllSchemaFilesOpts, DownloadProbe, LocalContextRepository, SchemaRegistryConfig};
 use same::mapping::{map_schemas, MapSchemasOpts};
+use same::registry::{SchemaVersion, SubjectName};
 
 use crate::map::MapError::ContextNotFound;
 
@@ -121,10 +124,7 @@ impl MapCommand {
             step(1, Emoji("🚚 ", ""),"Working offline, using locally cached schemas...");
         } else {
             step(1, Emoji("🚚 ", ""), "Downloading schemas...");
-            let opts = DownloadAllSchemaFilesOpts {
-                ignore_cache: Some(self.force_update)
-            };
-            download_schemas(&from_ctx, &to_ctx, opts).await?;
+            self.download_schemas(&from_ctx, &to_ctx).await?;
         }
 
         step(2, Emoji("🔎 ", ""),"Mapping schemas...");
@@ -136,7 +136,7 @@ impl MapCommand {
             },
         ).await?;
 
-        step(3, Emoji("🖨️", ""),"Printing mapping...");
+        step(3, Emoji("🖨️ ", ""),"Printing mapping...");
         serde_yaml::to_writer(self.output(), &mapping)?;
 
         step(4, Emoji("💫", ""),"Done");
@@ -169,6 +169,39 @@ impl MapCommand {
             }
         }
     }
+
+    pub async fn download_schemas(
+        &self,
+        from_ctx: &Arc<Context>,
+        to_ctx: &Arc<Context>,
+    ) -> Result<(), ContextError> {
+        let progress = Arc::new(indicatif::MultiProgress::new());
+        let (download_source_task, download_target_task) = tokio::join!(
+            self.spawn_download_task(from_ctx.clone(), progress.clone()),
+            self.spawn_download_task(to_ctx.clone(), progress.clone()),
+        );
+
+        flatten(download_source_task).await?;
+        flatten(download_target_task).await?;
+        Ok(())
+    }
+
+    async fn spawn_download_task(
+        &self,
+        ctx: Arc<Context>,
+        multi_progress_bar: Arc<indicatif::MultiProgress>,
+    ) ->  DownloadTask {
+        let ignore_cache = self.force_update;
+        tokio::spawn(async move {
+            let progress_bar = DownloadProgressBar::from_multi(multi_progress_bar.clone());
+            let opts = DownloadAllSchemaFilesOpts {
+                ignore_cache,
+                probe: Some(progress_bar),
+            };
+            ctx.download_all_schema_files(opts).await?;
+            Ok(())
+        })
+    }
 }
 
 impl MapCommand {
@@ -180,39 +213,71 @@ impl MapCommand {
     }
 }
 
-async fn download_schemas(
-    from_ctx: &Arc<Context>,
-    to_ctx: &Arc<Context>,
-    opts: DownloadAllSchemaFilesOpts,
-) -> Result<(), ContextError> {
-    let progress = Arc::new(indicatif::MultiProgress::new());
-    let (download_source_task, download_target_task) = tokio::join!(
-            spawn_download_task(from_ctx.clone(), progress.clone(), opts.clone()),
-            spawn_download_task(to_ctx.clone(), progress.clone(), opts),
-        );
 
-    flatten(download_source_task).await?;
-    flatten(download_target_task).await?;
-    Ok(())
+
+pub struct DownloadProgressBar {
+    progress_bar: indicatif::ProgressBar,
 }
 
-async fn spawn_download_task(
-    ctx: Arc<Context>,
-    progress_bar: Arc<indicatif::MultiProgress>,
-    opts: DownloadAllSchemaFilesOpts,
-) ->  DownloadTask {
-    tokio::spawn(async move {
-        let mut progress_bar = progress_bar.add(indicatif::ProgressBar::new_spinner());
+impl DownloadProgressBar {
+
+    pub fn from_multi(multi_progress_bar: Arc<indicatif::MultiProgress>) -> Self {
+        let progress_bar = multi_progress_bar.add(indicatif::ProgressBar::new_spinner());
         progress_bar.enable_steady_tick(Duration::from_millis(100));
         progress_bar.tick();
         progress_bar.set_style(ProgressStyle::with_template("{spinner:.green} [{elapsed_precise}] {msg} [{wide_bar:.cyan/blue}] ({eta})")
             .unwrap()
             .with_key("eta", |state: &ProgressState, w: &mut dyn fmt::Write| write!(w, "{:.1}s", state.eta().as_secs_f64()).unwrap())
             .progress_chars("#>-"));
-        ctx.download_all_schema_files(&mut progress_bar, opts).await?;
-        progress_bar.finish_and_clear();
-        Ok(())
-    })
+        Self { progress_bar }
+    }
+}
+
+impl DownloadProbe for DownloadProgressBar {
+
+    fn total(&self, total: u64) {
+        self.progress_bar.set_length(total);
+    }
+
+    fn downloading(
+        &self, name: &ContextName, subject: &SubjectName, version: &SchemaVersion) {
+
+        fn substr(s: &str, start: usize, end: usize) -> String {
+            match s.char_indices().nth(start) {
+                Some((start_idx, _)) => {
+                    match s.char_indices().nth(end) {
+                        Some((end_idx, _)) => s[start_idx..end_idx].to_string(),
+                        None => s[start_idx..].to_string(),
+                    }
+                },
+                None => String::new(),
+            }
+        }
+
+        let message = format!(
+            "{:<8} / {:<12} / {:<3}",
+            if name.len() > 8 {
+                format!("{:.5}...", substr(name.deref(), 0, 5))
+            } else {
+                format!("{:.8}", name)
+            },
+            if subject.len() > 12 {
+                format!("{:.9}...", substr(subject.deref(), 0, 9))
+            } else {
+                format!("{:.12}", subject)
+            },
+            format!("{:.5}", version));
+
+        self.progress_bar.set_message(message);
+    }
+
+    fn inc(&self, progress: u64) {
+        self.progress_bar.inc(progress);
+    }
+
+    fn finished(&self) {
+        self.progress_bar.finish_and_clear();
+    }
 }
 
 fn step(
