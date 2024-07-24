@@ -2,20 +2,37 @@ use std::fmt::Display;
 use std::fs;
 use std::ops::Deref;
 use std::path::{Path, PathBuf};
-use indicatif::ProgressBar;
-use crate::context::{Context, ContextError};
-use crate::registry::{ListSubjectsOptions, SchemaReference, Subject};
+use crate::context::{Context, ContextError, ContextName};
+use crate::registry::{ListSubjectsOptions, SchemaReference, SchemaVersion, Subject, SubjectName};
 use crate::registry::GetSchemaRegistryClient;
 
 #[derive(Debug, Clone)]
-pub struct DownloadAllSchemaFilesOpts {
+pub struct DownloadAllSchemaFilesOpts<P: DownloadProbe> {
     // Force update of all schemas
-    pub ignore_cache: Option<bool>
+    pub ignore_cache: bool,
+    pub probe: Option<P>,
+}
+
+impl<P> Default for DownloadAllSchemaFilesOpts<P>
+    where P: DownloadProbe {
+    fn default() -> Self {
+        Self {
+            ignore_cache: false,
+            probe: None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Default)]
 pub struct WalkSchemaSubjectsOpts {
     pub ignore_errors: bool,
+}
+
+pub trait DownloadProbe {
+    fn total(&self, total: u64);
+    fn downloading(&self, name: &ContextName, subject: &SubjectName, version: &SchemaVersion);
+    fn inc(&self, progress: u64);
+    fn finished(&self);
 }
 
 impl Context {
@@ -34,26 +51,25 @@ impl Context {
     }
 
     /// Downloads all schemas from the schema registry and stores them in the cache directory.
-    // TODO: Replace progress bar instrumentation with a probe
-    pub async fn download_all_schema_files(
+    pub async fn download_all_schema_files<P: DownloadProbe>(
         &self,
-        progress: &mut ProgressBar,
-        opts: DownloadAllSchemaFilesOpts,
+        opts: DownloadAllSchemaFilesOpts<P>,
     ) -> Result<(), ContextError> {
+
         let cache_dir = self.cache_dir()?;
         let client = self.get_client()?;
-
-        let force_update = opts.ignore_cache.unwrap_or(false);
 
         let subjects = client.subject()
             .list(ListSubjectsOptions::default())
             .await
             .map_err(ContextError::SchemaRegistryError)?;
 
-        progress.set_length(subjects.len() as u64);
+        if let Some(probe) = opts.probe.as_ref() {
+            probe.total(subjects.len() as u64);
+        }
 
         for subject in subjects {
-            tracing::debug!("Downloading subject: {}", subject);
+            tracing::debug!("Downloading all schemas for subject {}", subject);
 
             let subject_cache_dir = mkdir_p(&cache_dir.join(subject.deref()))?;
 
@@ -62,29 +78,19 @@ impl Context {
                 .await
                 .map_err(ContextError::SchemaRegistryError)?;
 
+            tracing::debug!("Found {} versions for subject {}", versions.len(), subject);
+
             for version in versions {
-                tracing::debug!("Downloading subject  {} version {}", subject, version);
+                tracing::debug!("Downloading subject {} (version {})", subject, version);
 
-                let message = format!(
-                    "{:<8} / {:<12} / {:<3}",
-                    if self.name.len() > 8 {
-                        format!("{:.5}...", substr(self.name.deref(), 0, 5))
-                    } else {
-                        format!("{:.8}", self.name)
-                    },
-                    if subject.len() > 12 {
-                        format!("{:.9}...", substr(subject.deref(), 0, 9))
-                    } else {
-                        format!("{:.12}", subject)
-                    },
-                    format!("{:.5}", version));
-
-                progress.set_message(message);
+                if let Some(probe) = opts.probe.as_ref() {
+                    probe.downloading(&self.name, &subject, &version);
+                }
 
                 // Check if we already have this schema cached
                 let schema_file = subject_cache_dir.join(version.to_string());
 
-                if !force_update && schema_file.exists() {
+                if !opts.ignore_cache && schema_file.exists() {
                     tracing::debug!("Schema already cached at {}", schema_file.display());
                     continue;
                 }
@@ -94,7 +100,7 @@ impl Context {
                 if let Some(schema) = schema {
                     let schema_file = subject_cache_dir.join(version.to_string());
 
-                    tracing::trace!("Writing schema to {}", schema_file.display());
+                    tracing::debug!("Writing subject {} (version {}) with id {} to {}", schema.subject, schema.version, schema.id, schema_file.display());
 
                     let file = std::fs::File::create(schema_file)
                         .map_err(ContextError::IoError)?;
@@ -106,7 +112,13 @@ impl Context {
                 }
             }
 
-            progress.inc(1);
+            if let Some(probe) = opts.probe.as_ref() {
+                probe.inc(1);
+            }
+        }
+
+        if let Some(probe) = opts.probe.as_ref() {
+            probe.finished();
         }
 
         Ok(())
@@ -180,14 +192,13 @@ fn mkdir_p<P: AsRef<Path>>(path: P) -> Result<PathBuf, ContextError> {
     Ok(path.to_path_buf())
 }
 
-fn substr(s: &str, start: usize, end: usize) -> String {
-    match s.char_indices().nth(start) {
-        Some((start_idx, _)) => {
-            match s.char_indices().nth(end) {
-                Some((end_idx, _)) => s[start_idx..end_idx].to_string(),
-                None => s[start_idx..].to_string(),
-            }
-        },
-        None => String::new(),
-    }
+pub struct EmptyDownloadProbe {
+
+}
+
+impl DownloadProbe for EmptyDownloadProbe {
+    fn total(&self, _total: u64) {}
+    fn downloading(&self, _name: &ContextName, _subject: &SubjectName, _version: &SchemaVersion) {}
+    fn inc(&self, _progress: u64) {}
+    fn finished(&self) {}
 }

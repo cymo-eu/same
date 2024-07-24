@@ -1,0 +1,11 @@
+{
+  "name": "Product",
+  "namespace": "io.kannika",
+  "type": "record",
+  "fields": [
+    {
+      "name": "productName",
+      "type": "string"
+    }
+  ]
+}
