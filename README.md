@@ -78,9 +78,10 @@ with the current working directory mounted to `/usr/var/same`:
 ```sh
 $ docker run \
   -v .:/usr/var/same \
-  quay.io/kannika/same:0.1.0 map \ 
+  quay.io/kannika/same:0.2.0 map \ 
   --from=source \
   --to=sink \
+  --ignore-indexing-errors \
   -o /usr/var/same/mapping.yaml \ 
   --registries /usr/var/same/registries.yaml
 ```

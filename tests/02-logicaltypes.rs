@@ -16,6 +16,7 @@ async fn logical_type_uuid() -> anyhow::Result<()> {
     env.delete_all_subjects().await?;
     env.register_avro_schema("uuid", include_str!("assets/avro/logicaltypes/uuid/v1.avsc")).await?;
     env.register_avro_schema("uuid", include_str!("assets/avro/logicaltypes/uuid/v2.avsc")).await?;
+    env.register_avro_schema("hvac", include_str!("assets/avro/logicaltypes/uuid/hvac.avsc")).await?;
 
     let from = env.mk_context("from", Authentication::None)?;
     let to = env.mk_context("to", Authentication::None)?;

@@ -1,0 +1,412 @@
+{
+  "type": "record",
+  "name": "EnodeHvacUpdated",
+  "namespace": "hvac",
+  "doc": "An hvac was updated in enode system.",
+  "fields": [
+    {
+      "name": "messageIdentification",
+      "type": {
+        "type": "record",
+        "name": "MessageIdentification",
+        "doc": "Technical Header for events",
+        "fields": [
+          {
+            "name": "id",
+            "type": [
+              "null",
+              "string"
+            ],
+            "doc": "Unique technical identification used in the master",
+            "default": null
+          },
+          {
+            "name": "functionalId",
+            "type": [
+              "null",
+              "string"
+            ],
+            "doc": "Unique functional identification of this message",
+            "default": null
+          },
+          {
+            "name": "correlationId",
+            "type": [
+              "null",
+              "string"
+            ],
+            "doc": "correlation identifier",
+            "default": null
+          },
+          {
+            "name": "source",
+            "type": [
+              "null",
+              "string"
+            ],
+            "doc": "Name of the source application where this message comes from",
+            "default": null
+          },
+          {
+            "name": "messageDateTime",
+            "type": [
+              "null",
+              {
+                "type": "long",
+                "logicalType": "timestamp-millis"
+              }
+            ],
+            "doc": "Timestamp of this message",
+            "default": null
+          }
+        ]
+      }
+    },
+    {
+      "name": "event",
+      "type": "string"
+    },
+    {
+      "name": "hvac",
+      "type": {
+        "type": "record",
+        "name": "Hvac",
+        "fields": [
+          {
+            "name": "capabilities",
+            "type": [
+              "null",
+              {
+                "type": "record",
+                "name": "HvacCapabilities",
+                "fields": [
+                  {
+                    "name": "capableHoldTypes",
+                    "type": {
+                      "type": "array",
+                      "items": "string"
+                    }
+                  },
+                  {
+                    "name": "capableModes",
+                    "type": {
+                      "type": "array",
+                      "items": "string"
+                    }
+                  },
+                  {
+                    "name": "coolSetpointRange",
+                    "type": {
+                      "type": "record",
+                      "name": "Range",
+                      "fields": [
+                        {
+                          "name": "max",
+                          "type": {
+                            "type": "string",
+                            "logicalType": "decimal"
+                          }
+                        },
+                        {
+                          "name": "min",
+                          "type": {
+                            "type": "string",
+                            "logicalType": "decimal"
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "name": "heatSetpointRange",
+                    "type": "Range"
+                  },
+                  {
+                    "name": "setFollowSchedule",
+                    "type": {
+                      "type": "record",
+                      "name": "Capability",
+                      "fields": [
+                        {
+                          "name": "interventionIds",
+                          "type": {
+                            "type": "array",
+                            "items": "string"
+                          }
+                        },
+                        {
+                          "name": "isCapable",
+                          "type": "boolean"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "name": "setPermanentHold",
+                    "type": "Capability"
+                  },
+                  {
+                    "name": "setpointDifferenceRange",
+                    "type": "Range"
+                  }
+                ]
+              }
+            ],
+            "default": null
+          },
+          {
+            "name": "consumptionRate",
+            "type": [
+              "null",
+              {
+                "type": "string",
+                "logicalType": "decimal"
+              }
+            ],
+            "default": null
+          },
+          {
+            "name": "coolSetpoint",
+            "type": [
+              "null",
+              {
+                "type": "string",
+                "logicalType": "decimal"
+              }
+            ],
+            "default": null
+          },
+          {
+            "name": "currentTemperature",
+            "type": [
+              "null",
+              {
+                "type": "string",
+                "logicalType": "decimal"
+              }
+            ],
+            "default": null
+          },
+          {
+            "name": "heatSetpoint",
+            "type": [
+              "null",
+              {
+                "type": "string",
+                "logicalType": "decimal"
+              }
+            ],
+            "default": null
+          },
+          {
+            "name": "holdType",
+            "type": [
+              "null",
+              "string"
+            ],
+            "default": null
+          },
+          {
+            "name": "id",
+            "type": "string"
+          },
+          {
+            "name": "information",
+            "type": [
+              "null",
+              {
+                "type": "record",
+                "name": "HvacInformation",
+                "fields": [
+                  {
+                    "name": "brand",
+                    "type": "string"
+                  },
+                  {
+                    "name": "category",
+                    "type": "string"
+                  },
+                  {
+                    "name": "displayName",
+                    "type": "string"
+                  },
+                  {
+                    "name": "groupName",
+                    "type": "string"
+                  },
+                  {
+                    "name": "model",
+                    "type": "string"
+                  }
+                ]
+              }
+            ],
+            "default": null
+          },
+          {
+            "name": "isActive",
+            "type": "boolean"
+          },
+          {
+            "name": "isReachable",
+            "type": "boolean"
+          },
+          {
+            "name": "lastSeen",
+            "type": {
+              "type": "long",
+              "logicalType": "timestamp-millis"
+            }
+          },
+          {
+            "name": "locationId",
+            "type": [
+              "null",
+              {
+                "type": "string",
+                "logicalType": "uuid"
+              }
+            ],
+            "default": null
+          },
+          {
+            "name": "mode",
+            "type": [
+              "null",
+              "string"
+            ],
+            "default": null
+          },
+          {
+            "name": "scopes",
+            "type": [
+              "null",
+              {
+                "type": "array",
+                "items": "string"
+              }
+            ],
+            "default": null
+          },
+          {
+            "name": "temperatureState",
+            "type": [
+              "null",
+              {
+                "type": "record",
+                "name": "HvacTemperatureState",
+                "fields": [
+                  {
+                    "name": "currentTemperature",
+                    "type": {
+                      "type": "string",
+                      "logicalType": "decimal"
+                    }
+                  },
+                  {
+                    "name": "isActive",
+                    "type": "boolean"
+                  },
+                  {
+                    "name": "lastUpdated",
+                    "type": {
+                      "type": "long",
+                      "logicalType": "timestamp-millis"
+                    }
+                  }
+                ]
+              }
+            ],
+            "default": null
+          },
+          {
+            "name": "thermostatState",
+            "type": [
+              "null",
+              {
+                "type": "record",
+                "name": "HvacThermostatState",
+                "fields": [
+                  {
+                    "name": "coolSetpoint",
+                    "type": {
+                      "type": "string",
+                      "logicalType": "decimal"
+                    }
+                  },
+                  {
+                    "name": "heatSetpoint",
+                    "type": {
+                      "type": "string",
+                      "logicalType": "decimal"
+                    }
+                  },
+                  {
+                    "name": "holdType",
+                    "type": "string"
+                  },
+                  {
+                    "name": "lastUpdated",
+                    "type": {
+                      "type": "long",
+                      "logicalType": "timestamp-millis"
+                    }
+                  },
+                  {
+                    "name": "mode",
+                    "type": "string"
+                  }
+                ]
+              }
+            ],
+            "default": null
+          },
+          {
+            "name": "userId",
+            "type": [
+              "null",
+              "string"
+            ],
+            "default": null
+          },
+          {
+            "name": "vendor",
+            "type": [
+              "null",
+              "string"
+            ],
+            "default": null
+          }
+        ]
+      }
+    },
+    {
+      "name": "updatedFields",
+      "type": {
+        "type": "array",
+        "items": "string"
+      }
+    },
+    {
+      "name": "user",
+      "type": [
+        "null",
+        {
+          "type": "record",
+          "name": "SystemHeartbeatSchemaUser",
+          "fields": [
+            {
+              "name": "id",
+              "type": "string"
+            }
+          ]
+        }
+      ],
+      "default": null
+    },
+    {
+      "name": "version",
+      "type": "string"
+    }
+  ]
+}

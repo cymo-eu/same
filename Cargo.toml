@@ -23,8 +23,8 @@ tracing-futures = "0.2.5"
 #CLI
 clap          = { version ="4.4", features = ["derive"] }
 
-serde = { version = "1.0.192", features = ["derive"] }
-serde_json = { version = "1.0.64", features = [] }
+serde = { version = "1.0.204", features = ["derive"] }
+serde_json = { version = "1.0.120", features = [] }
 serde_yaml = "0.9.27"
 strum = "0.26.3"
 strum_macros = "0.26.4"
@@ -35,7 +35,8 @@ anyhow = "1"
 
 dirs = "5.0"
 tempfile = "3.8.1"
-apache-avro = "0.16.0"
+#apache-avro = "0.16.0"
+apache-avro = { git = "https://github.com/apache/avro.git", rev="85f99b063fc706169badaa1777f59f4e40c7c249" }
 
 # command line
 dialoguer = { version = "0.11.0", features = ["password", "fuzzy-select"] }
