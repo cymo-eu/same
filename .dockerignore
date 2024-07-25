@@ -1,0 +1,14 @@
+target/
+
+# Intellij IDEA
+.idea/
+*.iml
+*.ipr
+
+# OS X
+.DS_Store
+
+# Eclipse
+.classpath
+.project
+.settings
