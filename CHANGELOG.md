@@ -1,6 +1,21 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## [unreleased]
+
+
+### 🌟 Features
+
+- [✨ support logicalTypes when calculating fingerprints](https://github.com/cymo-eu/same/commit/0caac3fe48970912a8634e18fb62fdc0e51384f9)
+
+
+### 🧹 Miscellaneous Tasks
+
+- [🔧 add .dockerignore](https://github.com/cymo-eu/same/commit/995933235d53ccebac96402ffb6ce9b499300a52)
+
+- [🚀 set version to 0.2.1](https://github.com/cymo-eu/same/commit/474ea9ca0c231d2751d3b673da859aa91c56bd43)
+
+
 ## [0.2.0] - 2024-07-24
 
 
