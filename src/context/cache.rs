@@ -1,10 +1,10 @@
+use crate::context::{Context, ContextError, ContextName};
+use crate::registry::GetSchemaRegistryClient;
+use crate::registry::{ListSubjectsOptions, SchemaReference, SchemaVersion, Subject, SubjectName};
 use std::fmt::Display;
 use std::fs;
 use std::ops::Deref;
 use std::path::{Path, PathBuf};
-use crate::context::{Context, ContextError, ContextName};
-use crate::registry::{ListSubjectsOptions, SchemaReference, SchemaVersion, Subject, SubjectName};
-use crate::registry::GetSchemaRegistryClient;
 
 #[derive(Debug, Clone)]
 pub struct DownloadAllSchemaFilesOpts<P: DownloadProbe> {
@@ -14,7 +14,9 @@ pub struct DownloadAllSchemaFilesOpts<P: DownloadProbe> {
 }
 
 impl<P> Default for DownloadAllSchemaFilesOpts<P>
-    where P: DownloadProbe {
+where
+    P: DownloadProbe,
+{
     fn default() -> Self {
         Self {
             ignore_cache: false,
@@ -36,7 +38,6 @@ pub trait DownloadProbe {
 }
 
 impl Context {
-
     /// Returns the path to the cache directory for this context.
     pub fn cache_dir(&self) -> Result<PathBuf, ContextError> {
         let dir = dirs::cache_dir()
@@ -55,11 +56,11 @@ impl Context {
         &self,
         opts: DownloadAllSchemaFilesOpts<P>,
     ) -> Result<(), ContextError> {
-
         let cache_dir = self.cache_dir()?;
         let client = self.get_client()?;
 
-        let subjects = client.subject()
+        let subjects = client
+            .subject()
             .list(ListSubjectsOptions::default())
             .await
             .map_err(ContextError::SchemaRegistryError)?;
@@ -73,7 +74,8 @@ impl Context {
 
             let subject_cache_dir = mkdir_p(&cache_dir.join(subject.deref()))?;
 
-            let versions = client.subject()
+            let versions = client
+                .subject()
                 .versions(&subject)
                 .await
                 .map_err(ContextError::SchemaRegistryError)?;
@@ -100,15 +102,24 @@ impl Context {
                 if let Some(schema) = schema {
                     let schema_file = subject_cache_dir.join(version.to_string());
 
-                    tracing::debug!("Writing subject {} (version {}) with id {} to {}", schema.subject, schema.version, schema.id, schema_file.display());
+                    tracing::debug!(
+                        "Writing subject {} (version {}) with id {} to {}",
+                        schema.subject,
+                        schema.version,
+                        schema.id,
+                        schema_file.display()
+                    );
 
-                    let file = std::fs::File::create(schema_file)
-                        .map_err(ContextError::IoError)?;
+                    let file = std::fs::File::create(schema_file).map_err(ContextError::IoError)?;
 
                     serde_yaml::to_writer(file, &schema)
                         .map_err(ContextError::SerializationError)?;
                 } else {
-                    tracing::debug!("No schema found for subject {} version {}", subject, version)
+                    tracing::debug!(
+                        "No schema found for subject {} version {}",
+                        subject,
+                        version
+                    )
                 }
             }
 
@@ -144,9 +155,8 @@ impl Context {
 
                         match serde_yaml::from_reader(&file) {
                             Ok(subject) => {
-                                f(subject)
-                                    .map_err(|e| ContextError::WalkError(e.to_string()))?;
-                            },
+                                f(subject).map_err(|e| ContextError::WalkError(e.to_string()))?;
+                            }
                             Err(e) => {
                                 if opts.ignore_errors {
                                     tracing::warn!("Error reading subject file {:?}: {}", file, e);
@@ -163,7 +173,10 @@ impl Context {
         Ok(())
     }
 
-    pub fn get_subject(&self, reference: &SchemaReference) -> Result<Option<Subject>, ContextError> {
+    pub fn get_subject(
+        &self,
+        reference: &SchemaReference,
+    ) -> Result<Option<Subject>, ContextError> {
         let cache_dir = self.cache_dir()?;
 
         let subject_cache_dir = cache_dir.join(reference.subject.deref());
@@ -173,8 +186,8 @@ impl Context {
         if schema_file.exists() {
             let file = fs::File::open(schema_file)?;
 
-            let subject: Subject = serde_yaml::from_reader(file)
-                .map_err(ContextError::DeserializationError)?;
+            let subject: Subject =
+                serde_yaml::from_reader(file).map_err(ContextError::DeserializationError)?;
 
             Ok(Some(subject))
         } else {
@@ -186,15 +199,12 @@ impl Context {
 fn mkdir_p<P: AsRef<Path>>(path: P) -> Result<PathBuf, ContextError> {
     let path = path.as_ref();
 
-    fs::create_dir_all(path)
-        .map_err(ContextError::IoError)?;
+    fs::create_dir_all(path).map_err(ContextError::IoError)?;
 
     Ok(path.to_path_buf())
 }
 
-pub struct EmptyDownloadProbe {
-
-}
+pub struct EmptyDownloadProbe {}
 
 impl DownloadProbe for EmptyDownloadProbe {
     fn total(&self, _total: u64) {}

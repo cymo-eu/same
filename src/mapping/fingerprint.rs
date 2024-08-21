@@ -12,15 +12,13 @@ use crate::registry::{SchemaType, Subject};
 pub enum FingerPrint {
     Avro(AvroFingerPrint),
     Protobuf,
-    Json
+    Json,
 }
 
 #[derive(Debug, thiserror::Error)]
 pub enum FingerPrintError {
-
     #[error(transparent)]
     InvalidAvroSchema(#[from] apache_avro::Error),
-
 }
 
 pub trait ToFingerPrint {
@@ -42,7 +40,7 @@ impl SubjectFingerPrintBuilder {
 
     pub fn resolve_references_from(
         &mut self,
-        resolver: &impl ResolveSchemaReferences
+        resolver: &impl ResolveSchemaReferences,
     ) -> &SubjectFingerPrintBuilder {
         let mut resolved = Vec::new();
 
@@ -52,7 +50,7 @@ impl SubjectFingerPrintBuilder {
                     resolved.push(resolved_schema.schema);
                 }
                 Ok(Resolution::Unresolved(schema_ref)) => {
-                   tracing::warn!("Unresolved schema reference: {:?}", schema_ref)
+                    tracing::warn!("Unresolved schema reference: {:?}", schema_ref)
                 }
                 Err(err) => {
                     tracing::error!("Error resolving schema reference: {:?}", err)
@@ -88,13 +86,9 @@ impl ToFingerPrint for SubjectFingerPrintBuilder {
                 let fingerprint = AvroFingerPrint::from_schema(&first);
 
                 Ok(FingerPrint::Avro(fingerprint))
-            },
-            SchemaType::Json => {
-                Ok(FingerPrint::Json)
-            },
-            SchemaType::Protobuf => {
-                Ok(FingerPrint::Protobuf)
             }
+            SchemaType::Json => Ok(FingerPrint::Json),
+            SchemaType::Protobuf => Ok(FingerPrint::Protobuf),
         }
     }
 }
@@ -104,13 +98,12 @@ pub struct AvroFingerPrint {
     pub bytes: Vec<u8>,
 }
 
-
 impl AvroFingerPrint {
     pub fn from_schema(schema: &AvroSchema) -> AvroFingerPrint {
         let fingerprint = schema.fingerprint::<Rabin>();
 
         AvroFingerPrint {
-            bytes: fingerprint.bytes
+            bytes: fingerprint.bytes,
         }
     }
 }
@@ -145,8 +138,8 @@ impl Debug for AvroFingerPrint {
 
 #[cfg(test)]
 mod tests {
-    use crate::AvroSchema;
     use crate::mapping::fingerprint::AvroFingerPrint;
+    use crate::AvroSchema;
 
     #[test]
     fn display_should_print_fingerprint() {
@@ -173,7 +166,8 @@ mod tests {
 
     #[test]
     fn same_schemas_should_have_same_fingerprint() {
-        let one = AvroSchema::parse_str(r#"
+        let one = AvroSchema::parse_str(
+            r#"
         {
             "type": "record",
             "name": "test",
@@ -185,9 +179,12 @@ mod tests {
                 }
             ]
         }
-        "#).unwrap();
+        "#,
+        )
+        .unwrap();
 
-        let two = AvroSchema::parse_str(r#"
+        let two = AvroSchema::parse_str(
+            r#"
         {
             "namespace": "com.example",
             "type": "record",
@@ -199,16 +196,20 @@ mod tests {
                 }
             ]
         }
-        "#).unwrap();
+        "#,
+        )
+        .unwrap();
 
         assert_eq!(
             AvroFingerPrint::from_schema(&one),
-            AvroFingerPrint::from_schema(&two));
+            AvroFingerPrint::from_schema(&two)
+        );
     }
 
     #[test]
     fn different_schemas_should_have_different_fingerprint() {
-        let one = AvroSchema::parse_str(r#"
+        let one = AvroSchema::parse_str(
+            r#"
         {
             "type": "record",
             "name": "test",
@@ -220,9 +221,12 @@ mod tests {
                 }
             ]
         }
-        "#).unwrap();
+        "#,
+        )
+        .unwrap();
 
-        let two = AvroSchema::parse_str(r#"
+        let two = AvroSchema::parse_str(
+            r#"
         {
             "namespace": "com.example",
             "type": "record",
@@ -234,11 +238,14 @@ mod tests {
                 }
             ]
         }
-        "#).unwrap();
+        "#,
+        )
+        .unwrap();
 
         assert_ne!(
             AvroFingerPrint::from_schema(&one),
-            AvroFingerPrint::from_schema(&two));
+            AvroFingerPrint::from_schema(&two)
+        );
     }
 
     #[test]
@@ -258,7 +265,8 @@ mod tests {
         }
         "#).unwrap();
 
-        let two = AvroSchema::parse_str(r#"
+        let two = AvroSchema::parse_str(
+            r#"
         {
             "namespace": "com.example",
             "type": "record",
@@ -271,10 +279,13 @@ mod tests {
                 }
             ]
         }
-        "#).unwrap();
+        "#,
+        )
+        .unwrap();
 
         assert_eq!(
             AvroFingerPrint::from_schema(&one),
-            AvroFingerPrint::from_schema(&two));
+            AvroFingerPrint::from_schema(&two)
+        );
     }
 }

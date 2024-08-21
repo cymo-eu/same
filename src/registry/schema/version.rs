@@ -135,7 +135,10 @@ mod tests {
     fn should_serde_version() {
         let json = "42";
         let version = serde_yaml::from_str::<SchemaVersion>(json).unwrap();
-        assert_eq!(version, SchemaVersion::Version(NonZeroU32::new(42).unwrap()));
+        assert_eq!(
+            version,
+            SchemaVersion::Version(NonZeroU32::new(42).unwrap())
+        );
         let s = serde_yaml::to_string(&version).unwrap();
         assert_eq!(s, json);
     }
@@ -155,5 +158,4 @@ mod tests {
         let version = serde_yaml::from_str::<SchemaVersion>(json).unwrap();
         assert_eq!(version, SchemaVersion::Latest);
     }
-
 }

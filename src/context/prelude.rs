@@ -13,7 +13,6 @@ pub struct Context {
 
     /// The configuration for the schema registry
     pub registry: SchemaRegistryConfig,
-
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]

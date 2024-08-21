@@ -15,7 +15,7 @@ pub struct Subject {
     /// Version of the schema
     pub version: SchemaVersion,
     /// The schema type
-    #[serde(rename="schemaType", default)]
+    #[serde(rename = "schemaType", default)]
     pub schema_type: SchemaType,
     /// The schema
     pub schema: String,
@@ -58,16 +58,19 @@ mod tests {
                 "schema": "schema",
                 "schemaType": "PROTOBUF"
             }"#,
-        ).unwrap();
+        )
+        .unwrap();
 
-        assert_eq!(subject, Subject {
-            subject: "potatobuf".parse::<SubjectName>().unwrap(),
-            version: "1".parse::<SchemaVersion>().unwrap(),
-            id: "2".parse::<SchemaId>().unwrap(),
-            schema_type: crate::registry::SchemaType::Protobuf,
-            schema: "schema".to_owned(),
-            references: vec![],
-        });
+        assert_eq!(
+            subject,
+            Subject {
+                subject: "potatobuf".parse::<SubjectName>().unwrap(),
+                version: "1".parse::<SchemaVersion>().unwrap(),
+                id: "2".parse::<SchemaId>().unwrap(),
+                schema_type: crate::registry::SchemaType::Protobuf,
+                schema: "schema".to_owned(),
+                references: vec![],
+            }
+        );
     }
-
 }

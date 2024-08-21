@@ -2,7 +2,6 @@ use crate::registry;
 
 #[derive(Debug, thiserror::Error)]
 pub enum ContextError {
-
     #[error("Deserialization error: {0}")]
     DeserializationError(#[source] serde_yaml::Error),
 

@@ -1,18 +1,17 @@
 mod add;
 mod map;
 
+use crate::add::AddCommand;
+use crate::map::MapCommand;
+use clap::{Parser, Subcommand};
 use std::io;
 use std::io::Write;
 use std::process::exit;
-use clap::{Parser, Subcommand};
-use crate::add::AddCommand;
-use crate::map::MapCommand;
 use tracing_subscriber::prelude::*;
 use tracing_subscriber::EnvFilter;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-
     let opt = Opt::parse();
 
     if opt.verbose {
@@ -20,12 +19,8 @@ async fn main() -> anyhow::Result<()> {
     }
 
     let result = match opt.command {
-        Commands::Map(cmd) => {
-            cmd.run().await
-        }
-        Commands::Add(cmd) => {
-            cmd.run().await
-        }
+        Commands::Map(cmd) => cmd.run().await,
+        Commands::Add(cmd) => cmd.run().await,
     };
 
     match &result {
@@ -36,22 +31,18 @@ async fn main() -> anyhow::Result<()> {
             writeln!(io::stderr(), "error: {:?}", e).unwrap();
         }
     }
-    result
-        .map(|_| exit(0))
-        .map_err(|_| exit(1))
+    result.map(|_| exit(0)).map_err(|_| exit(1))
 }
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 #[command(propagate_version = true)]
 struct Opt {
-
     #[command(subcommand)]
     pub command: Commands,
 
     #[clap(short, long)]
     pub verbose: bool,
-
 }
 
 #[derive(Subcommand, Debug)]
@@ -62,7 +53,6 @@ enum Commands {
     /// Configure a schema registry context
     Add(AddCommand),
 }
-
 
 /// Logger for humans. It enables some debug info
 fn configure_logger() {

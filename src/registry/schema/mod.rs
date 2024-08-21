@@ -21,7 +21,6 @@ pub enum SchemaType {
     Json,
 }
 
-
 /// A Schema payload
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct Schema {
@@ -54,5 +53,4 @@ mod tests {
         let schema_type = schema_type.parse::<super::SchemaType>().unwrap();
         assert_eq!(schema_type, super::SchemaType::Json);
     }
-
 }

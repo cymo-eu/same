@@ -1,10 +1,10 @@
-mod repo;
+mod cache;
+mod client;
 mod error;
 mod prelude;
-mod client;
-mod cache;
+mod repo;
 
-pub use self::repo::*;
+pub use self::cache::*;
 pub use self::error::*;
 pub use self::prelude::*;
-pub use self::cache::*;
+pub use self::repo::*;

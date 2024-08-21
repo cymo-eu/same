@@ -1,13 +1,16 @@
-#[allow(unused)]
-
-use std::sync::Once;
+use crate::common::registries::{RemoteSchemaRegistry, TestSchemaRegistry};
 use registries::ContainerizedSchemaRegistry;
 use same::context::{Authentication, Context, SchemaRegistryConfig};
-use same::registry::{DeleteVersionOptions, ListSubjectsOptions, NewVersionOptions, RegisterSchema, SchemaId, SchemaReference, SchemaRegistryClient, SchemaRegistryClientError, SchemaType, Subject, SubjectName};
-use crate::common::registries::{RemoteSchemaRegistry, TestSchemaRegistry};
+use same::registry::{
+    DeleteVersionOptions, ListSubjectsOptions, NewVersionOptions, RegisterSchema, SchemaId,
+    SchemaReference, SchemaRegistryClient, SchemaRegistryClientError, SchemaType, Subject,
+    SubjectName,
+};
+#[allow(unused)]
+use std::sync::Once;
 
-pub mod registries;
 pub mod macros;
+pub mod registries;
 
 #[allow(unused)]
 pub struct TestEnv {
@@ -22,10 +25,7 @@ impl TestEnv {
             let container = ContainerizedSchemaRegistry::start().await?;
             let client = SchemaRegistryClient::new(&container.get_schema_registry_url())?;
             let registry = TestSchemaRegistry::Containerized(container);
-            Ok(Self {
-                registry,
-                client,
-            })
+            Ok(Self { registry, client })
         })
     }
 
@@ -33,23 +33,27 @@ impl TestEnv {
         let remote = RemoteSchemaRegistry::new(url);
         let registry = TestSchemaRegistry::Remote(remote);
         let client = SchemaRegistryClient::new(url)?;
-        Ok(Self {
-            registry,
-            client,
-        })
+        Ok(Self { registry, client })
     }
 
     pub async fn delete_all_subjects(&self) -> anyhow::Result<()> {
         if let TestSchemaRegistry::Remote(remote) = &self.registry {
             if remote.get_schema_registry_url().contains("confluent.cloud") {
-                return Err(anyhow::anyhow!("Cannot delete all subjects in Confluent Schema Registry for safety reasons"));
+                return Err(anyhow::anyhow!(
+                    "Cannot delete all subjects in Confluent Schema Registry for safety reasons"
+                ));
             }
         }
 
-        let subjects = self.client.subject().list(ListSubjectsOptions::default()).await?;
+        let subjects = self
+            .client
+            .subject()
+            .list(ListSubjectsOptions::default())
+            .await?;
         for subject in subjects {
             for version in self.client.subject().versions(&subject).await? {
-                let _ = self.client
+                let _ = self
+                    .client
                     .subject()
                     .delete_version(&subject, version, DeleteVersionOptions::default())
                     .await?;
@@ -65,7 +69,8 @@ impl TestEnv {
     pub async fn register_protobuf_schema(
         &self,
         subject_name: &str,
-        schema: &str) -> anyhow::Result<Subject> {
+        schema: &str,
+    ) -> anyhow::Result<Subject> {
         let request = RegisterSchema {
             schema: schema.to_string(),
             schema_type: Some(SchemaType::Protobuf),
@@ -77,7 +82,8 @@ impl TestEnv {
     pub async fn register_avro_schema(
         &self,
         subject_name: &str,
-        schema: &str) -> anyhow::Result<Subject> {
+        schema: &str,
+    ) -> anyhow::Result<Subject> {
         let request = RegisterSchema {
             schema: schema.to_string(),
             schema_type: Some(SchemaType::Avro),
@@ -90,7 +96,8 @@ impl TestEnv {
         &self,
         subject_name: &str,
         schema: &str,
-        references: Vec<SchemaReference>) -> anyhow::Result<Subject> {
+        references: Vec<SchemaReference>,
+    ) -> anyhow::Result<Subject> {
         let request = RegisterSchema {
             schema: schema.to_string(),
             schema_type: Some(SchemaType::Avro),
@@ -107,14 +114,26 @@ impl TestEnv {
     ) -> anyhow::Result<Subject> {
         let subject_name: SubjectName = subject_name.parse()?;
 
-        let registered_schema = self.client
+        let registered_schema = self
+            .client
             .subject()
-            .new_version(&subject_name, &register_schema_request, NewVersionOptions::default())
+            .new_version(
+                &subject_name,
+                &register_schema_request,
+                NewVersionOptions::default(),
+            )
             .await?;
 
-        match self.find_version_of_schema_id(&subject_name, &registered_schema.id).await? {
+        match self
+            .find_version_of_schema_id(&subject_name, &registered_schema.id)
+            .await?
+        {
             Some(subject) => Ok(subject),
-            None => Err(anyhow::anyhow!("Failed to find version for subject {} with id {} after registering it", subject_name, registered_schema.id)),
+            None => Err(anyhow::anyhow!(
+                "Failed to find version for subject {} with id {} after registering it",
+                subject_name,
+                registered_schema.id
+            )),
         }
     }
 
@@ -123,13 +142,11 @@ impl TestEnv {
         subject: &SubjectName,
         schema_id: &SchemaId,
     ) -> Result<Option<Subject>, SchemaRegistryClientError> {
-        let subject_versions = self.client
-            .subject()
-            .versions(subject)
-            .await?;
+        let subject_versions = self.client.subject().versions(subject).await?;
 
         for subject_version in subject_versions {
-            let schema = self.client
+            let schema = self
+                .client
                 .subject()
                 .version(subject, subject_version)
                 .await?;

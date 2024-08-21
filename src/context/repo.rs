@@ -1,11 +1,10 @@
 use std::io;
 use std::path::{Path, PathBuf};
 
-use crate::context::{ContextError, Context, ContextName};
+use crate::context::{Context, ContextError, ContextName};
 
 pub const CURRENT_CONFIG_VERSION: u32 = 0;
 pub const CFG_FILE: &'static str = "config";
-
 
 /// ContextRepository is a repository for storing and retrieving contexts
 pub trait ContextRepository {
@@ -17,7 +16,6 @@ pub trait ContextRepository {
     /// If the context already exists, it will be updated
     fn set_context(&self, context: Context) -> Result<(), ContextError>;
 }
-
 
 /// A local repository that stores contexts in a config file
 ///
@@ -35,9 +33,7 @@ impl LocalContextRepository {
         let root = data_dir.join("io.kannika.same");
         std::fs::create_dir_all(&root).expect("Could not create config directory");
         let cfg_file = root.join(CFG_FILE);
-        Self {
-            cfg_file,
-        }
+        Self { cfg_file }
     }
 
     /// Set the config file. Only used for testing purposes
@@ -113,7 +109,8 @@ impl Config {
             .map_err(|err| ContextError::IoError(err))?;
 
         // if file is empty, write default config
-        let file_length = file.metadata()
+        let file_length = file
+            .metadata()
             .map_err(|err| ContextError::IoError(err))?
             .len();
 
@@ -127,26 +124,17 @@ impl Config {
         Self::from_reader(&mut file)
     }
 
-    pub fn from_reader<R>(
-        rdr: &mut R
-    ) -> Result<Config, ContextError>
-        where
-            R: io::Read
+    pub fn from_reader<R>(rdr: &mut R) -> Result<Config, ContextError>
+    where
+        R: io::Read,
     {
-        let value: Config = serde_yaml::from_reader(rdr)
-            .map_err(|err| ContextError::DeserializationError(err))?;
+        let value: Config =
+            serde_yaml::from_reader(rdr).map_err(|err| ContextError::DeserializationError(err))?;
         Ok(value)
     }
 
-
-    pub fn find_context(
-        &self,
-        name: &ContextName,
-    ) -> Result<Option<Context>, ContextError> {
-        let context = self
-            .registries
-            .iter()
-            .find(|c| &c.name == name);
+    pub fn find_context(&self, name: &ContextName) -> Result<Option<Context>, ContextError> {
+        let context = self.registries.iter().find(|c| &c.name == name);
         Ok(context.cloned())
     }
 
@@ -213,18 +201,23 @@ mod tests {
         repo.set_context(Context {
             name: "data-land".into(),
             registry: data_land_registry(),
-        }).unwrap();
+        })
+        .unwrap();
 
         repo.set_context(Context {
             name: "data-land".into(),
             registry: chocolate_factory_registry(),
-        }).unwrap();
+        })
+        .unwrap();
 
         let result = repo.find_context(&"data-land".into());
-        assert_eq!(result.unwrap(), Some(Context {
-            name: "data-land".into(),
-            registry: chocolate_factory_registry(),
-        }));
+        assert_eq!(
+            result.unwrap(),
+            Some(Context {
+                name: "data-land".into(),
+                registry: chocolate_factory_registry(),
+            })
+        );
     }
 
     #[test]
@@ -247,11 +240,10 @@ mod tests {
     fn data_land_registry() -> SchemaRegistryConfig {
         SchemaRegistryConfig {
             url: "http://dataland:8081".into(),
-            auth: Authentication::Keychain(
-                KeychainConfig {
-                    username: "alice".to_owned(),
-                    basic_auth_entry_name: "kannika-same-dataland".into(),
-                }),
+            auth: Authentication::Keychain(KeychainConfig {
+                username: "alice".to_owned(),
+                basic_auth_entry_name: "kannika-same-dataland".into(),
+            }),
         }
     }
 

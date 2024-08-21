@@ -1,8 +1,8 @@
-use std::env;
-use std::str::FromStr;
 use clap::Args;
 use keyring::Entry;
-use same::context::{Authentication, KeychainConfig, ContextRepository, LocalContextRepository};
+use same::context::{Authentication, ContextRepository, KeychainConfig, LocalContextRepository};
+use std::env;
+use std::str::FromStr;
 
 #[derive(Args, Debug)]
 pub struct AddCommand {}
@@ -42,8 +42,8 @@ impl AddCommand {
         let auth = match auth_selection {
             // Basic Auth
             0 => {
-                let username_input = dialoguer::Input::<String>::new()
-                    .with_prompt("Enter the username");
+                let username_input =
+                    dialoguer::Input::<String>::new().with_prompt("Enter the username");
 
                 let username = interact(username_input)?;
 
@@ -51,21 +51,16 @@ impl AddCommand {
                     .with_prompt("Enter the password")
                     .interact()?;
 
-                AuthInput::Basic(BasicAuthInput {
-                    username,
-                    password,
-                })
+                AuthInput::Basic(BasicAuthInput { username, password })
             }
             // None
-            1 => {
-                AuthInput::None
-            }
+            1 => AuthInput::None,
             _ => unreachable!(),
         };
 
         // Ask user for name
-        let name_input = dialoguer::Input::<String>::new()
-            .with_prompt("Enter a name for the context");
+        let name_input =
+            dialoguer::Input::<String>::new().with_prompt("Enter a name for the context");
 
         let name = interact(name_input)?;
 
@@ -85,10 +80,7 @@ impl AddCommand {
         // Store context
         let context = same::context::Context {
             name: same::context::ContextName(name.to_owned()),
-            registry: same::context::SchemaRegistryConfig {
-                url,
-                auth,
-            },
+            registry: same::context::SchemaRegistryConfig { url, auth },
         };
 
         let repo = LocalContextRepository::get();
@@ -96,9 +88,7 @@ impl AddCommand {
 
         Ok(())
     }
-
 }
-
 
 ///
 /// Interacts with the user to get input
@@ -107,30 +97,21 @@ impl AddCommand {
 /// If not, then only alphanumeric characters are allowed.
 ///
 /// https://github.com/console-rs/dialoguer/issues/251
-fn interact<T>(
-    input: dialoguer::Input<T>
-) -> dialoguer::Result<T>
-    where
-        T: Clone + ToString + FromStr,
-        <T as FromStr>::Err: ToString {
-
+fn interact<T>(input: dialoguer::Input<T>) -> dialoguer::Result<T>
+where
+    T: Clone + ToString + FromStr,
+    <T as FromStr>::Err: ToString,
+{
     match env::var("TMUX") {
-        Ok(value) if value.len() > 0 => {
-            input.interact()
-        }
-        _ => {
-            input.interact_text()
-        }
+        Ok(value) if value.len() > 0 => input.interact(),
+        _ => input.interact_text(),
     }
 }
-
 
 // TODO move to context module
 fn store_in_keychain(name: &String, basic_auth: &BasicAuthInput) -> anyhow::Result<String> {
     let entry_name = format!("kannika-same-{}", &name);
-    let entry = Entry::new(
-        entry_name.as_str(),
-        basic_auth.username.as_str())?;
+    let entry = Entry::new(entry_name.as_str(), basic_auth.username.as_str())?;
     entry.set_password(&basic_auth.password)?;
     Ok(entry_name)
 }

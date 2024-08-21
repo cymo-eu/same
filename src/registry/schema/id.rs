@@ -14,7 +14,9 @@ use crate::registry::*;
 /// let id2 = SchemaId::from(1);
 /// assert_eq!(id, id2);
 /// ```
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize, PartialOrd, Ord)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize, PartialOrd, Ord,
+)]
 pub struct SchemaId(u32);
 
 impl FromStr for SchemaId {

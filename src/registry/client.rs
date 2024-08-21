@@ -1,10 +1,13 @@
+use crate::registry::{
+    ApiError, RegisterSchema, RegisteredSchema, Schema, SchemaId, SchemaType, SchemaVersion,
+    Subject, SubjectName,
+};
+use reqwest::header::{HeaderMap, HeaderValue, ACCEPT};
 use reqwest::{Client, Response, StatusCode, Url};
-use reqwest::header::{ACCEPT, HeaderMap, HeaderValue};
 use reqwest_middleware::ClientWithMiddleware;
 use reqwest_tracing::TracingMiddleware;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
-use crate::registry::{ApiError, RegisteredSchema, RegisterSchema, Schema, SchemaId, SchemaType, SchemaVersion, Subject, SubjectName};
 
 #[derive(Debug)]
 pub struct SchemaRegistryClient {
@@ -42,7 +45,6 @@ pub enum SchemaRegistryClientError {
 }
 
 impl SchemaRegistryClient {
-
     fn parse_url(url: &str) -> Result<Url, SchemaRegistryClientError> {
         if !url.starts_with("http://") && !url.starts_with("https://") {
             return SchemaRegistryClient::parse_url(format!("https://{}", url).as_str());
@@ -56,7 +58,11 @@ impl SchemaRegistryClient {
         Self::build_default(url)
     }
 
-    pub fn new_with_basic_auth(url: &str, username: &str, password: &str) -> Result<Self, SchemaRegistryClientError> {
+    pub fn new_with_basic_auth(
+        url: &str,
+        username: &str,
+        password: &str,
+    ) -> Result<Self, SchemaRegistryClientError> {
         let mut url = Self::parse_url(url)?;
 
         url.set_username(username)
@@ -79,10 +85,7 @@ impl SchemaRegistryClient {
             .with(TracingMiddleware::default())
             .build();
 
-        Ok(Self {
-            url,
-            client
-        })
+        Ok(Self { url, client })
     }
 
     /// Subject client
@@ -98,50 +101,46 @@ impl SchemaRegistryClient {
     }
 
     async fn get<T>(&self, url: Url) -> Result<T, SchemaRegistryClientError>
-        where
-            T: DeserializeOwned,
+    where
+        T: DeserializeOwned,
     {
         let response = self.client.get(url).send().await?;
         handle_response(response).await
     }
 
     async fn post<R, B>(&self, url: Url, body: &R) -> Result<B, SchemaRegistryClientError>
-        where
-            R: Serialize,
-            B: DeserializeOwned,
+    where
+        R: Serialize,
+        B: DeserializeOwned,
     {
         let response = self.client.post(url).json(body).send().await?;
         handle_response(response).await
     }
 
-
     async fn get_optional<T>(&self, url: Url) -> Result<Option<T>, SchemaRegistryClientError>
-        where
-            T: DeserializeOwned,
+    where
+        T: DeserializeOwned,
     {
         let response = self.client.get(url).send().await?;
         handle_optional_response(response).await
     }
 
     async fn delete_optional<B>(&self, url: Url) -> Result<Option<B>, SchemaRegistryClientError>
-        where
-            B: DeserializeOwned,
+    where
+        B: DeserializeOwned,
     {
         let response = self.client.delete(url).send().await?;
         handle_optional_response(response).await
     }
-
 }
 
 pub trait GetSchemaRegistryClient {
     fn get_client(&self) -> Result<SchemaRegistryClient, SchemaRegistryClientError>;
 }
 
-async fn handle_response<T>(
-    response: Response
-) -> Result<T, SchemaRegistryClientError>
-    where
-        T: DeserializeOwned,
+async fn handle_response<T>(response: Response) -> Result<T, SchemaRegistryClientError>
+where
+    T: DeserializeOwned,
 {
     if response.status().is_success() {
         let result = response.json().await?;
@@ -153,10 +152,10 @@ async fn handle_response<T>(
 }
 
 async fn handle_optional_response<T>(
-    response: Response
+    response: Response,
 ) -> Result<Option<T>, SchemaRegistryClientError>
-    where
-        T: DeserializeOwned,
+where
+    T: DeserializeOwned,
 {
     let status = response.status();
     if status.is_success() {
@@ -184,7 +183,6 @@ pub struct SchemaClient<'client> {
 }
 
 impl SchemaClient<'_> {
-
     #[tracing::instrument(skip(self))]
     pub async fn get(
         &self,
@@ -220,7 +218,6 @@ impl SchemaClient<'_> {
         let url = self.client.url.join("schemas/types")?;
         self.client.get(url).await
     }
-
 }
 
 /// The subject client
@@ -249,7 +246,6 @@ pub struct DeleteVersionOptions {
 }
 
 impl SubjectClient<'_> {
-
     #[tracing::instrument(skip(self))]
     pub async fn list(
         &self,
@@ -320,6 +316,4 @@ impl SubjectClient<'_> {
 
         self.client.delete_optional(url).await
     }
-
-
 }

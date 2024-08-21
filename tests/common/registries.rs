@@ -1,12 +1,12 @@
 use anyhow::Context;
 use bollard::container::Config;
-use bollard::Docker;
 use bollard::exec::{CreateExecOptions, StartExecOptions};
 use bollard::models::{ContainerInspectResponse, HostConfig, PortBinding};
+use bollard::Docker;
 
 pub enum TestSchemaRegistry {
     Remote(RemoteSchemaRegistry),
-    Containerized(ContainerizedSchemaRegistry)
+    Containerized(ContainerizedSchemaRegistry),
 }
 
 pub struct RemoteSchemaRegistry {

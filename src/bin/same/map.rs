@@ -1,8 +1,8 @@
-use std::{fmt, io};
 use std::io::Write;
 use std::ops::Deref;
 use std::sync::Arc;
 use std::time::Duration;
+use std::{fmt, io};
 
 use clap::Args;
 use dialoguer::console::Emoji;
@@ -10,7 +10,10 @@ use indicatif::{ProgressState, ProgressStyle};
 use serde::{Deserialize, Serialize};
 use tokio::task::JoinHandle;
 
-use same::context::{Authentication, Context, ContextError, ContextName, ContextRepository, DownloadAllSchemaFilesOpts, DownloadProbe, LocalContextRepository, SchemaRegistryConfig};
+use same::context::{
+    Authentication, Context, ContextError, ContextName, ContextRepository,
+    DownloadAllSchemaFilesOpts, DownloadProbe, LocalContextRepository, SchemaRegistryConfig,
+};
 use same::mapping::{map_schemas, MapSchemasOpts};
 use same::registry::{SchemaVersion, SubjectName};
 
@@ -43,7 +46,7 @@ pub struct MapCommand {
 
     #[arg(long)]
     // File containing a list of registries to use for mapping
-    registries: Option<String>
+    registries: Option<String>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -61,15 +64,11 @@ pub struct RegistryConfig {
 }
 
 impl TryFrom<RegistryConfig> for Context {
-
     type Error = MapError;
 
     fn try_from(config: RegistryConfig) -> Result<Self, Self::Error> {
         let auth = if let (Some(username), Some(password)) = (config.username, config.password) {
-           Authentication::BasicAuth {
-                username,
-                password,
-           }
+            Authentication::BasicAuth { username, password }
         } else {
             Authentication::None
         };
@@ -82,12 +81,12 @@ impl TryFrom<RegistryConfig> for Context {
             },
         })
     }
-
 }
 
 impl Registries {
     fn get(&self, name: &str) -> Result<RegistryConfig, MapError> {
-        self.registries.iter()
+        self.registries
+            .iter()
             .find(|r| r.name == name)
             .cloned()
             .ok_or_else(|| MapError::ContextNotFound(name.into()))
@@ -107,13 +106,10 @@ pub enum MapError {
 
     #[error("Serde error: {0}")]
     SerdeError(#[from] serde_yaml::Error),
-
 }
 
 impl MapCommand {
-
     pub async fn run(&self) -> anyhow::Result<()> {
-
         let (from_ctx, to_ctx) = self.get_contexts()?;
 
         if from_ctx == to_ctx {
@@ -121,25 +117,30 @@ impl MapCommand {
         }
 
         if self.offline {
-            step(1, Emoji("🚚 ", ""),"Working offline, using locally cached schemas...");
+            step(
+                1,
+                Emoji("🚚 ", ""),
+                "Working offline, using locally cached schemas...",
+            );
         } else {
             step(1, Emoji("🚚 ", ""), "Downloading schemas...");
             self.download_schemas(&from_ctx, &to_ctx).await?;
         }
 
-        step(2, Emoji("🔎 ", ""),"Mapping schemas...");
+        step(2, Emoji("🔎 ", ""), "Mapping schemas...");
         let mapping = map_schemas(
             from_ctx.clone(),
             to_ctx.clone(),
             MapSchemasOpts {
                 ignore_indexing_errors: self.ignore_indexing_errors,
             },
-        ).await?;
+        )
+        .await?;
 
-        step(3, Emoji("🖨️ ", ""),"Printing mapping...");
+        step(3, Emoji("🖨️ ", ""), "Printing mapping...");
         serde_yaml::to_writer(self.output(), &mapping)?;
 
-        step(4, Emoji("💫", ""),"Done");
+        step(4, Emoji("💫", ""), "Done");
 
         Ok(())
     }
@@ -152,18 +153,18 @@ impl MapCommand {
                 let from = registries.get(&self.from)?;
                 let to = registries.get(&self.to)?;
                 Ok((Arc::new(from.try_into()?), Arc::new(to.try_into()?)))
-            },
+            }
             None => {
                 let repo = LocalContextRepository::get();
                 let from: ContextName = self.from.clone().into();
                 let to: ContextName = self.to.clone().into();
                 let from_ctx = Arc::new(
                     repo.find_context(&from)?
-                        .ok_or_else(|| ContextNotFound(from))?
+                        .ok_or_else(|| ContextNotFound(from))?,
                 );
                 let to_ctx = Arc::new(
                     repo.find_context(&self.to.clone().into())?
-                        .ok_or_else(|| ContextNotFound(to))?
+                        .ok_or_else(|| ContextNotFound(to))?,
                 );
                 Ok((from_ctx, to_ctx))
             }
@@ -190,7 +191,7 @@ impl MapCommand {
         &self,
         ctx: Arc<Context>,
         multi_progress_bar: Arc<indicatif::MultiProgress>,
-    ) ->  DownloadTask {
+    ) -> DownloadTask {
         let ignore_cache = self.force_update;
         tokio::spawn(async move {
             let progress_bar = DownloadProgressBar::from_multi(multi_progress_bar.clone());
@@ -213,42 +214,40 @@ impl MapCommand {
     }
 }
 
-
-
 pub struct DownloadProgressBar {
     progress_bar: indicatif::ProgressBar,
 }
 
 impl DownloadProgressBar {
-
     pub fn from_multi(multi_progress_bar: Arc<indicatif::MultiProgress>) -> Self {
         let progress_bar = multi_progress_bar.add(indicatif::ProgressBar::new_spinner());
         progress_bar.enable_steady_tick(Duration::from_millis(100));
         progress_bar.tick();
-        progress_bar.set_style(ProgressStyle::with_template("{spinner:.green} [{elapsed_precise}] {msg} [{wide_bar:.cyan/blue}] ({eta})")
+        progress_bar.set_style(
+            ProgressStyle::with_template(
+                "{spinner:.green} [{elapsed_precise}] {msg} [{wide_bar:.cyan/blue}] ({eta})",
+            )
             .unwrap()
-            .with_key("eta", |state: &ProgressState, w: &mut dyn fmt::Write| write!(w, "{:.1}s", state.eta().as_secs_f64()).unwrap())
-            .progress_chars("#>-"));
+            .with_key("eta", |state: &ProgressState, w: &mut dyn fmt::Write| {
+                write!(w, "{:.1}s", state.eta().as_secs_f64()).unwrap()
+            })
+            .progress_chars("#>-"),
+        );
         Self { progress_bar }
     }
 }
 
 impl DownloadProbe for DownloadProgressBar {
-
     fn total(&self, total: u64) {
         self.progress_bar.set_length(total);
     }
 
-    fn downloading(
-        &self, name: &ContextName, subject: &SubjectName, version: &SchemaVersion) {
-
+    fn downloading(&self, name: &ContextName, subject: &SubjectName, version: &SchemaVersion) {
         fn substr(s: &str, start: usize, end: usize) -> String {
             match s.char_indices().nth(start) {
-                Some((start_idx, _)) => {
-                    match s.char_indices().nth(end) {
-                        Some((end_idx, _)) => s[start_idx..end_idx].to_string(),
-                        None => s[start_idx..].to_string(),
-                    }
+                Some((start_idx, _)) => match s.char_indices().nth(end) {
+                    Some((end_idx, _)) => s[start_idx..end_idx].to_string(),
+                    None => s[start_idx..].to_string(),
                 },
                 None => String::new(),
             }
@@ -266,7 +265,8 @@ impl DownloadProbe for DownloadProgressBar {
             } else {
                 format!("{:.12}", subject)
             },
-            format!("{:.5}", version));
+            format!("{:.5}", version)
+        );
 
         self.progress_bar.set_message(message);
     }
@@ -280,26 +280,14 @@ impl DownloadProbe for DownloadProgressBar {
     }
 }
 
-fn step(
-    number: usize,
-    emoji: Emoji,
-    message: &str,
-) {
-    writeln!(
-        io::stderr(),
-        "[{}/4] {} {}",
-        number,
-        emoji,
-        message,
-    ).unwrap();
+fn step(number: usize, emoji: Emoji, message: &str) {
+    writeln!(io::stderr(), "[{}/4] {} {}", number, emoji, message,).unwrap();
 }
 
 type DownloadTask = JoinHandle<DownloadTaskResult>;
 type DownloadTaskResult = Result<(), ContextError>;
 
-async fn flatten(
-    handle: DownloadTask
-) -> DownloadTaskResult {
+async fn flatten(handle: DownloadTask) -> DownloadTaskResult {
     match handle.await {
         Ok(Ok(result)) => Ok(result),
         Ok(Err(err)) => Err(err),

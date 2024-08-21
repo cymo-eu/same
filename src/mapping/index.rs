@@ -42,9 +42,8 @@ impl SchemaRegistryIndex {
     }
 
     // TODO implement proper iterator
-    pub fn iter<'a>(&'a self) -> impl Iterator<Item=&SchemaRef> + 'a {
-        self.fp.iter()
-            .map(|(_, schema_ref)| schema_ref)
+    pub fn iter<'a>(&'a self) -> impl Iterator<Item = &SchemaRef> + 'a {
+        self.fp.iter().map(|(_, schema_ref)| schema_ref)
     }
 
     pub fn index(
@@ -71,24 +70,20 @@ impl SchemaRegistryIndex {
         Ok(())
     }
 
-
-    fn insert(
-        &mut self,
-        reference: SchemaRef,
-    ) {
-        self.fp.insert(reference.fingerprint.clone(), reference.clone());
+    fn insert(&mut self, reference: SchemaRef) {
+        self.fp
+            .insert(reference.fingerprint.clone(), reference.clone());
     }
 
     pub fn find_by_fingerprint(&self, fingerprint: &FingerPrint) -> Candidates {
-        self.fp.get_vec(fingerprint)
+        self.fp
+            .get_vec(fingerprint)
             .map(|schema_refs| schema_refs.to_owned())
-            .map(|schema_refs| {
-                match schema_refs {
-                    mut schema_refs if schema_refs.len() == 1 => {
-                        Candidates::PerfectMatch(schema_refs.pop().unwrap())
-                    }
-                    schema_refs => Candidates::Multiple(schema_refs),
+            .map(|schema_refs| match schema_refs {
+                mut schema_refs if schema_refs.len() == 1 => {
+                    Candidates::PerfectMatch(schema_refs.pop().unwrap())
                 }
+                schema_refs => Candidates::Multiple(schema_refs),
             })
             .unwrap_or(Candidates::None)
     }
@@ -118,11 +113,10 @@ fn to_schema_ref(
     })
 }
 
-
 #[cfg(test)]
 mod tests {
     use crate::mapping::fingerprint::{SubjectFingerPrintBuilder, ToFingerPrint};
-    use crate::mapping::index::{Candidates, SchemaRegistryIndex, to_schema_ref};
+    use crate::mapping::index::{to_schema_ref, Candidates, SchemaRegistryIndex};
     use crate::mapping::resolve::{Resolution, ResolutionError, ResolveSchemaReferences};
     use crate::registry::{SchemaId, SchemaReference, SchemaType, SchemaVersion, Subject};
 
@@ -131,7 +125,10 @@ mod tests {
     }
 
     impl ResolveSchemaReferences for MockResolver {
-        fn resolve_schema_reference(&self, reference: &SchemaReference) -> Result<Resolution, ResolutionError> {
+        fn resolve_schema_reference(
+            &self,
+            reference: &SchemaReference,
+        ) -> Result<Resolution, ResolutionError> {
             for (schema_ref, subject) in &self.mapping {
                 if schema_ref == reference {
                     return Ok(Resolution::Resolved(schema_ref.clone(), subject.clone()));
@@ -162,25 +159,29 @@ mod tests {
         let schema_ref = to_schema_ref(schema_subject, &MockResolver::new()).unwrap();
         let expected: Candidates = Candidates::PerfectMatch(schema_ref);
 
-        assert_eq!(
-            index.find_by_fingerprint(&fingerprint),
-            expected);
+        assert_eq!(index.find_by_fingerprint(&fingerprint), expected);
     }
 
     #[test]
     fn find_avro_schema_with_references_by_fingerprint() {
         // Set up references
         let mut resolver = MockResolver::new();
-        resolver.mapping.push((SchemaReference {
-            name: "Product".parse().unwrap(),
-            subject: "product".to_string(),
-            version: "5".parse::<SchemaVersion>().unwrap(),
-        }, product_subject()));
-        resolver.mapping.push((SchemaReference {
-            name: "Customer".parse().unwrap(),
-            subject: "customer".to_string(),
-            version: "6".parse::<SchemaVersion>().unwrap(),
-        }, customer_subject()));
+        resolver.mapping.push((
+            SchemaReference {
+                name: "Product".parse().unwrap(),
+                subject: "product".to_string(),
+                version: "5".parse::<SchemaVersion>().unwrap(),
+            },
+            product_subject(),
+        ));
+        resolver.mapping.push((
+            SchemaReference {
+                name: "Customer".parse().unwrap(),
+                subject: "customer".to_string(),
+                version: "6".parse::<SchemaVersion>().unwrap(),
+            },
+            customer_subject(),
+        ));
 
         let mut index = SchemaRegistryIndex::new();
 
@@ -196,9 +197,7 @@ mod tests {
         let schema_ref = to_schema_ref(schema_subject, &resolver).unwrap();
         let expected: Candidates = Candidates::PerfectMatch(schema_ref);
 
-        assert_eq!(
-            index.find_by_fingerprint(&fingerprint),
-            expected);
+        assert_eq!(index.find_by_fingerprint(&fingerprint), expected);
     }
 
     #[test]
@@ -285,7 +284,6 @@ mod tests {
         }
     }
 
-
     fn product_subject() -> Subject {
         Subject {
             subject: "product".parse().unwrap(),
@@ -359,7 +357,6 @@ mod tests {
             }
             "#
     }
-
 
     fn potato_schema() -> &'static str {
         r#"

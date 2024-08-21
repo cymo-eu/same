@@ -1,7 +1,7 @@
+use crate::registry::SubjectNameError;
 use std::fmt::Display;
 use std::ops::Deref;
 use std::str::FromStr;
-use crate::registry::SubjectNameError;
 
 /// A subject name
 ///
@@ -68,7 +68,8 @@ mod tests {
     fn should_parse_subject_name() {
         let name = "sensor-values";
         let result = name.parse::<SubjectName>();
-        let _expected: Result<SubjectName, SubjectNameError> = Ok(SubjectName("sensor-values".to_string()));
+        let _expected: Result<SubjectName, SubjectNameError> =
+            Ok(SubjectName("sensor-values".to_string()));
         assert!(matches!(result, _expected));
     }
 
@@ -84,7 +85,8 @@ mod tests {
     fn should_not_parse_bad_subject_name() {
         let name = "\nasd";
         let result = name.parse::<SubjectName>();
-        let _expected: Result<SubjectName, SubjectNameError> = Err(SubjectNameError::InvalidChar(name.to_string()));
+        let _expected: Result<SubjectName, SubjectNameError> =
+            Err(SubjectNameError::InvalidChar(name.to_string()));
         assert!(matches!(result, _expected));
     }
 }
