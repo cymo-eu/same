@@ -133,7 +133,7 @@ mod tests {
 
     #[test]
     fn should_serde_version() {
-        let json = "42";
+        let json = "42\n";
         let version = serde_yaml::from_str::<SchemaVersion>(json).unwrap();
         assert_eq!(
             version,
@@ -145,7 +145,7 @@ mod tests {
 
     #[test]
     fn should_serde_latest_version() {
-        let json = "\"latest\"";
+        let json = "latest\n";
         let version = serde_yaml::from_str::<SchemaVersion>(json).unwrap();
         assert_eq!(version, SchemaVersion::Latest);
         let s = serde_yaml::to_string(&version).unwrap();

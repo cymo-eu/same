@@ -9,7 +9,7 @@ edition = "2021"
 reqwest = { version = "0.12.5", features = ["json"] }
 reqwest-middleware = { version = "0.3.2", features = ["json"] }
 reqwest-tracing = "0.5.2"
-keyring = "2"
+keyring = "3.2.0"
 
 #Runtime framework
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "sync", "signal", "fs", "io-util"] }
@@ -45,7 +45,7 @@ indicatif = "0.17.7"
 rand = "0.8.5"
 url = "2.4.1"
 
-bollard = "0.16.1"
+bollard = "0.17.1"
 
 multimap = "0.10.0"
 futures = "0.3.30"
