@@ -35,8 +35,7 @@ anyhow = "1"
 
 dirs = "5.0"
 tempfile = "3.8.1"
-#apache-avro = "0.16.0"
-apache-avro = { git = "https://github.com/apache/avro.git", rev="85f99b063fc706169badaa1777f59f4e40c7c249" }
+apache-avro = "0.17.0"
 
 # command line
 dialoguer = { version = "0.11.0", features = ["password", "fuzzy-select"] }
