@@ -1,10 +1,10 @@
 use crate::context::{Context, WalkSchemaSubjectsOpts};
-use crate::mapping::index::{Candidates, SchemaRegistryIndex, SchemaRegistryIndexError};
+use crate::mapping::index::{
+    Candidates, FingerprintedSchema, SchemaRegistryIndex, SchemaRegistryIndexError,
+};
 use crate::mapping::MappingError::OverwritingMapping;
 use crate::registry::SchemaId;
 use std::collections::BTreeMap;
-use std::io;
-use std::io::Write;
 use std::sync::Arc;
 use tokio::task::JoinHandle;
 
@@ -16,19 +16,14 @@ type IndexTask = JoinHandle<IndexTaskResult>;
 type IndexTaskResult = Result<SchemaRegistryIndex, SchemaRegistryIndexError>;
 
 /// A mapping between two registries
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, Default)]
+#[derive(Debug, Clone, PartialEq, Default)]
 pub struct SchemaRegistryMapping {
-    mapping: BTreeMap<SchemaId, SchemaId>,
+    matched: BTreeMap<SchemaId, SchemaId>,
+    missed: Vec<FingerprintedSchema>,
 }
 
 #[derive(Debug, thiserror::Error)]
 pub enum MappingError {
-    #[error("Missing mapping for schema: {0}")]
-    MissingMapping(SchemaId),
-
-    #[error("Multiple mappings for schema: {0} -> {1:?}")]
-    MultipleMappings(SchemaId, Vec<SchemaId>),
-
     #[error("Overwriting mapping for schema: {0} -> {1} (was {2})")]
     OverwritingMapping(SchemaId, SchemaId, SchemaId),
 
@@ -41,19 +36,20 @@ impl SchemaRegistryMapping {
     #[must_use]
     pub fn new() -> Self {
         Self {
-            mapping: BTreeMap::new(),
+            matched: BTreeMap::new(),
+            missed: Vec::new(),
         }
     }
 
     /// Inserts the mapping between two schemas
     /// If there was already a mapping for the source schema, the original target schema will be returned
     /// If there was no mapping for the source schema, None will be returned
-    pub fn insert(
+    pub fn insert_match(
         &mut self,
         source: SchemaId,
         target: SchemaId,
     ) -> Result<Option<SchemaId>, MappingError> {
-        if let Some(old_mapping) = self.mapping.insert(source, target) {
+        if let Some(old_mapping) = self.matched.insert(source, target) {
             if old_mapping != target {
                 tracing::error!(
                     "Overwriting mapping for schema: {:?} -> {:?} (was {:?})",
@@ -66,6 +62,18 @@ impl SchemaRegistryMapping {
         }
 
         Ok(None)
+    }
+
+    pub fn insert_miss(&mut self, missed: FingerprintedSchema) {
+        self.missed.push(missed);
+    }
+
+    pub fn missed(&self) -> &[FingerprintedSchema] {
+        &self.missed
+    }
+
+    pub fn matched(&self) -> &BTreeMap<SchemaId, SchemaId> {
+        &self.matched
     }
 }
 
@@ -92,8 +100,6 @@ pub async fn map_schemas(
 
     let mut mapping = SchemaRegistryMapping::new();
 
-    let mut missed: usize = 0;
-
     // Beware, here be dragons!
     // We are iterating over the schemas of the source context,
     // and we are looking for the same schema in the target context.
@@ -103,9 +109,14 @@ pub async fn map_schemas(
         let results = target_index.find_by_fingerprint(&source_schema_ref.fingerprint);
 
         match results {
+            Candidates::PerfectMatch(match_made_in_heaven) => {
+                mapping
+                    .insert_match(source_schema_ref.id, match_made_in_heaven.id)
+                    .unwrap();
+            }
             Candidates::None => {
                 tracing::warn!("Missing mapping for schema: {:?}", source_schema_ref);
-                missed += 1;
+                mapping.insert_miss(source_schema_ref.clone());
             }
             Candidates::Multiple(refs) => {
                 let unique_ids = refs
@@ -117,7 +128,7 @@ pub async fn map_schemas(
                 if unique_ids.len() == 1 {
                     let first_one_is_fine = refs.first().unwrap();
                     mapping
-                        .insert(source_schema_ref.id, first_one_is_fine.id)
+                        .insert_match(source_schema_ref.id, first_one_is_fine.id)
                         .unwrap();
 
                     // We got multiple candidates, but they have different ids
@@ -127,20 +138,11 @@ pub async fn map_schemas(
                         source_schema_ref,
                         refs
                     );
-                    missed += 1;
+                    mapping.insert_miss(source_schema_ref.clone());
                 }
-            }
-            Candidates::PerfectMatch(match_made_in_heaven) => {
-                mapping
-                    .insert(source_schema_ref.id, match_made_in_heaven.id)
-                    .unwrap();
             }
         };
     });
-
-    if missed > 0 {
-        writeln!(io::stderr(), "Missed {} schemas.", missed).unwrap();
-    }
 
     Ok(mapping)
 }

@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::io::Write;
 use std::ops::Deref;
 use std::sync::Arc;
@@ -15,7 +16,7 @@ use same::context::{
     DownloadAllSchemaFilesOpts, DownloadProbe, LocalContextRepository, SchemaRegistryConfig,
 };
 use same::mapping::{map_schemas, MapSchemasOpts};
-use same::registry::{SchemaVersion, SubjectName};
+use same::registry::{SchemaId, SchemaReference, SchemaVersion, SubjectName};
 
 use crate::map::MapError::ContextNotFound;
 
@@ -61,6 +62,23 @@ pub struct RegistryConfig {
     url: String,
     username: Option<String>,
     password: Option<String>,
+}
+
+#[derive(serde::Serialize, serde::Deserialize)]
+struct MappingOutput {
+    mapping: BTreeMap<SchemaId, SchemaId>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    missed: Vec<MissedSchema>,
+}
+
+#[derive(serde::Serialize, serde::Deserialize)]
+struct MissedSchema {
+    id: SchemaId,
+    subject: SubjectName,
+    version: SchemaVersion,
+    schema: String,
+    fingerprint: Option<String>,
+    references: Vec<SchemaReference>,
 }
 
 impl TryFrom<RegistryConfig> for Context {
@@ -115,7 +133,6 @@ impl MapCommand {
         if from_ctx == to_ctx {
             return Err(anyhow::anyhow!("Cannot map a registry to itself"));
         }
-
         if self.offline {
             step(
                 1,
@@ -138,8 +155,30 @@ impl MapCommand {
         .await?;
 
         step(3, Emoji("🖨️ ", ""), "Printing mapping...");
-        serde_yaml::to_writer(self.output(), &mapping)?;
+        serde_yaml::to_writer(
+            self.output(),
+            &MappingOutput {
+                mapping: mapping.matched().to_owned(),
+                missed: mapping
+                    .missed()
+                    .iter()
+                    .map(|schema| MissedSchema {
+                        id: schema.id.clone(),
+                        subject: schema.subject.clone(),
+                        version: schema.version.clone(),
+                        schema: schema.schema.clone(),
+                        fingerprint: schema.fingerprint.get_value_opt(),
+                        references: schema.references.clone(),
+                    })
+                    .collect(),
+            },
+        )?;
 
+        if mapping.missed().is_empty() {
+            writeln!(io::stderr(), "All schemas mapped successfully!")?;
+        } else {
+            writeln!(io::stderr(), "Some schemas failed to map.")?;
+        }
         step(4, Emoji("💫", ""), "Done");
 
         Ok(())

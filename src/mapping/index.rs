@@ -1,13 +1,13 @@
 use multimap::MultiMap;
 
-use crate::mapping::fingerprint::{FingerPrint, SubjectFingerPrintBuilder, ToFingerPrint};
+use crate::mapping::fingerprint::{Fingerprint, SubjectFingerPrintBuilder, ToFingerPrint};
 use crate::mapping::resolve::ResolveSchemaReferences;
-use crate::registry::{SchemaId, SchemaType, SchemaVersion, Subject, SubjectName};
+use crate::registry::{SchemaId, SchemaReference, SchemaType, SchemaVersion, Subject, SubjectName};
 
 /// Schema registry index that allows for fast lookup of schema references by fingerprint
 pub struct SchemaRegistryIndex {
     // Index by fingerprint
-    fp: MultiMap<FingerPrint, SchemaRef>,
+    fp: MultiMap<Fingerprint, FingerprintedSchema>,
 }
 
 #[derive(Debug, Clone, thiserror::Error)]
@@ -19,18 +19,20 @@ pub enum SchemaRegistryIndexError {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct SchemaRef {
+pub struct FingerprintedSchema {
+    pub fingerprint: Fingerprint,
     pub subject: SubjectName,
     pub version: SchemaVersion,
     pub id: SchemaId,
     pub schema_type: SchemaType,
-    pub fingerprint: FingerPrint,
+    pub schema: String,
+    pub references: Vec<SchemaReference>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Candidates {
-    Multiple(Vec<SchemaRef>),
-    PerfectMatch(SchemaRef),
+    Multiple(Vec<FingerprintedSchema>),
+    PerfectMatch(FingerprintedSchema),
     None,
 }
 
@@ -42,7 +44,7 @@ impl SchemaRegistryIndex {
     }
 
     // TODO implement proper iterator
-    pub fn iter<'a>(&'a self) -> impl Iterator<Item = &SchemaRef> + 'a {
+    pub fn iter<'a>(&'a self) -> impl Iterator<Item = &FingerprintedSchema> + 'a {
         self.fp.iter().map(|(_, schema_ref)| schema_ref)
     }
 
@@ -63,60 +65,64 @@ impl SchemaRegistryIndex {
         schema_subject: &Subject,
         resolver: &impl ResolveSchemaReferences,
     ) -> Result<(), SchemaRegistryIndexError> {
-        let schema_ref: SchemaRef = to_schema_ref(schema_subject.clone(), resolver)?;
+        let schema = FingerprintedSchema::from_subject(schema_subject.clone(), resolver)?;
 
-        self.insert(schema_ref);
+        self.insert(schema);
 
         Ok(())
     }
 
-    fn insert(&mut self, reference: SchemaRef) {
+    fn insert(&mut self, reference: FingerprintedSchema) {
         self.fp
             .insert(reference.fingerprint.clone(), reference.clone());
     }
 
-    pub fn find_by_fingerprint(&self, fingerprint: &FingerPrint) -> Candidates {
+    pub fn find_by_fingerprint(&self, fingerprint: &Fingerprint) -> Candidates {
         self.fp
             .get_vec(fingerprint)
-            .map(|schema_refs| schema_refs.to_owned())
-            .map(|schema_refs| match schema_refs {
-                mut schema_refs if schema_refs.len() == 1 => {
-                    Candidates::PerfectMatch(schema_refs.pop().unwrap())
+            .map(|schemas| schemas.to_owned())
+            .map(|schemas| match schemas {
+                mut schemas if schemas.len() == 1 => {
+                    Candidates::PerfectMatch(schemas.pop().unwrap())
                 }
-                schema_refs => Candidates::Multiple(schema_refs),
+                schemas => Candidates::Multiple(schemas),
             })
             .unwrap_or(Candidates::None)
     }
 }
 
-fn to_schema_ref(
-    subject: Subject,
-    resolver: &impl ResolveSchemaReferences,
-) -> Result<SchemaRef, SchemaRegistryIndexError> {
-    let fingerprint = SubjectFingerPrintBuilder::new(subject.clone())
-        .resolve_references_from(resolver)
-        .to_fingerprint()
-        .map_err(|err| {
-            SchemaRegistryIndexError::FailedToCalculateFingerprint(
-                subject.subject.clone(),
-                subject.version.clone(),
-                err.to_string(),
-            )
-        })?;
+impl FingerprintedSchema {
+    pub fn from_subject(
+        subject: Subject,
+        resolver: &impl ResolveSchemaReferences,
+    ) -> Result<Self, SchemaRegistryIndexError> {
+        let fingerprint = SubjectFingerPrintBuilder::new(subject.clone())
+            .resolve_references_from(resolver)
+            .to_fingerprint()
+            .map_err(|err| {
+                SchemaRegistryIndexError::FailedToCalculateFingerprint(
+                    subject.subject.clone(),
+                    subject.version.clone(),
+                    err.to_string(),
+                )
+            })?;
 
-    Ok(SchemaRef {
-        subject: subject.subject.clone(),
-        version: subject.version.clone(),
-        id: subject.id.clone(),
-        schema_type: subject.schema_type.clone(),
-        fingerprint,
-    })
+        Ok(FingerprintedSchema {
+            subject: subject.subject.clone(),
+            version: subject.version.clone(),
+            id: subject.id.clone(),
+            schema_type: subject.schema_type.clone(),
+            fingerprint,
+            schema: subject.schema.clone(),
+            references: subject.references.clone(),
+        })
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use crate::mapping::fingerprint::{SubjectFingerPrintBuilder, ToFingerPrint};
-    use crate::mapping::index::{to_schema_ref, Candidates, SchemaRegistryIndex};
+    use crate::mapping::index::{Candidates, FingerprintedSchema, SchemaRegistryIndex};
     use crate::mapping::resolve::{Resolution, ResolutionError, ResolveSchemaReferences};
     use crate::registry::{SchemaId, SchemaReference, SchemaType, SchemaVersion, Subject};
 
@@ -156,8 +162,9 @@ mod tests {
 
         index.index(&schema_subject, &MockResolver::new()).unwrap();
 
-        let schema_ref = to_schema_ref(schema_subject, &MockResolver::new()).unwrap();
-        let expected: Candidates = Candidates::PerfectMatch(schema_ref);
+        let schema =
+            FingerprintedSchema::from_subject(schema_subject, &MockResolver::new()).unwrap();
+        let expected: Candidates = Candidates::PerfectMatch(schema);
 
         assert_eq!(index.find_by_fingerprint(&fingerprint), expected);
     }
@@ -194,8 +201,8 @@ mod tests {
 
         index.index(&schema_subject, &resolver).unwrap();
 
-        let schema_ref = to_schema_ref(schema_subject, &resolver).unwrap();
-        let expected: Candidates = Candidates::PerfectMatch(schema_ref);
+        let schema = FingerprintedSchema::from_subject(schema_subject, &resolver).unwrap();
+        let expected: Candidates = Candidates::PerfectMatch(schema);
 
         assert_eq!(index.find_by_fingerprint(&fingerprint), expected);
     }
