@@ -5,13 +5,14 @@ SAME is a tool for automatically generating mappings between schema registries.
 
 ## 👩‍💻 Usage
 
-To compare between schema registries,
-you must configure them first.
-After that,
-you can generate mappings between them.
-Schema registries are stored inside contexts.
+- [Configuring schema registries](#configuring-schema-registries)
+- [Generating a mapping](#generating-a-mapping)
 
-***Configuring schema registries***
+### Configuring schema registries
+
+There are two ways to configure schema registries:
+- Using the `same add` command (interactive).
+- Using a configuration file (non-interactive). See [Mapping registries using a file](#mapping-registries-using-a-file) below.
 
 You can configure a schema registry using the `same add` command.
 
@@ -24,11 +25,11 @@ Enter the password: [hidden]
 Enter a name for the context: prod
 ```
 
-***Generating a mapping***
+### Generating a mapping
 
 Generate a mapping between two schema registries:
 
-``` 
+```
 $ same map --from [SOURCE_CTX] --to [TARGET_CTX] -o mapping
 ```
 
@@ -41,8 +42,9 @@ Options:
 - `--registries`: The config file containing the schema registries (optional).
 - `--offline`: Run in offline mode, do not download schemas from the registries (optional, default false).
 - `--ignore-indexing-errors`: Ignore indexing errors (optional, default false).
+- `--on-conflict=[strict|pick-first|pick-lowest-id|pick-highest-id]`: How to handle conflicts (optional, default `strict`). See [Conflict resolution](#conflict-resolution) below.
 
-***Mapping registries using a file***
+### Mapping registries using a file
 
 It is possible to pass the schema registries as a file.
 This is useful when you are not able to configure the schema registries using the `same add` command,
@@ -65,9 +67,9 @@ registries:
 This can then be used as follows:
 
 ```sh
-$ same map \ 
+$ same map \
   --from source \
-  --to sink \ 
+  --to sink \
   -o mapping.yaml  \
   --registries /path/to/registries.yaml
 ```
@@ -78,11 +80,12 @@ with the current working directory mounted to `/usr/var/same`:
 ```sh
 $ docker run \
   -v .:/usr/var/same \
-  quay.io/kannika/same:0.2.0 map \ 
+  quay.io/kannika/same:0.2.0 map \
   --from=source \
   --to=sink \
   --ignore-indexing-errors \
-  -o /usr/var/same/mapping.yaml \ 
+  --on-conflict=pick-first \
+  -o /usr/var/same/mapping.yaml \
   --registries /usr/var/same/registries.yaml
 ```
 
@@ -115,6 +118,17 @@ These are ignored for now:
 
 - JSON Schema
 - Protocol Buffers
+
+## Conflict resolution
+
+When a conflict is detected during mapping,
+you can pass the `--on-conflict` flag to specify how to handle it.
+Available strategies are:
+
+- `strict`: The mapping process will log a warnig and report the conflict as a missing mapping. This is the default behavior.
+- `pick-first`: Pick the first schema encountered and ignore the rest.
+- `pick-lowest-id`: Pick the schema with the lowest ID.
+- `pick-highest-id`: Pick the schema with the highest ID.
 
 ## 👀 Debugging
 

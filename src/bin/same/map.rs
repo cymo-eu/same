@@ -14,6 +14,7 @@ use same::context::{
     Authentication, Context, ContextError, ContextName, ContextRepository,
     DownloadAllSchemaFilesOpts, DownloadProbe, LocalContextRepository, SchemaRegistryConfig,
 };
+use same::mapping::conflict::ConflictResolutionStrategy;
 use same::mapping::{map_schemas, MapSchemasOpts};
 use same::registry::{SchemaVersion, SubjectName};
 
@@ -47,6 +48,9 @@ pub struct MapCommand {
     #[arg(long)]
     // File containing a list of registries to use for mapping
     registries: Option<String>,
+
+    #[arg(long)]
+    on_conflict: ConflictResolutionStrategy,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -133,6 +137,7 @@ impl MapCommand {
             to_ctx.clone(),
             MapSchemasOpts {
                 ignore_indexing_errors: self.ignore_indexing_errors,
+                on_conflict: self.on_conflict,
             },
         )
         .await?;

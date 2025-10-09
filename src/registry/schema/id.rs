@@ -19,6 +19,12 @@ use crate::registry::*;
 )]
 pub struct SchemaId(u32);
 
+impl SchemaId {
+    pub fn new(id: u32) -> Self {
+        SchemaId(id)
+    }
+}
+
 impl FromStr for SchemaId {
     type Err = SchemaIdError;
 
