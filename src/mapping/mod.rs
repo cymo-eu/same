@@ -1,6 +1,8 @@
 use crate::context::{Context, WalkSchemaSubjectsOpts};
 use crate::mapping::conflict::{ConflictResolution, ConflictResolutionStrategy};
-use crate::mapping::index::{Candidates, SchemaRegistryIndex, SchemaRegistryIndexError};
+use crate::mapping::index::{
+    Candidates, FingerprintedSchema, SchemaRegistryIndex, SchemaRegistryIndexError,
+};
 use crate::mapping::MappingError::OverwritingMapping;
 use crate::registry::SchemaId;
 use std::collections::BTreeMap;
@@ -16,9 +18,10 @@ type IndexTask = JoinHandle<IndexTaskResult>;
 type IndexTaskResult = Result<SchemaRegistryIndex, SchemaRegistryIndexError>;
 
 /// A mapping between two registries
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, Default)]
+#[derive(Debug, Clone, PartialEq, Default)]
 pub struct SchemaRegistryMapping {
-    mapping: BTreeMap<SchemaId, SchemaId>,
+    matched: BTreeMap<SchemaId, SchemaId>,
+    missed: Vec<FingerprintedSchema>,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -41,19 +44,20 @@ impl SchemaRegistryMapping {
     #[must_use]
     pub fn new() -> Self {
         Self {
-            mapping: BTreeMap::new(),
+            matched: BTreeMap::new(),
+            missed: Vec::new(),
         }
     }
 
     /// Inserts the mapping between two schemas
     /// If there was already a mapping for the source schema, the original target schema will be returned
     /// If there was no mapping for the source schema, None will be returned
-    pub fn insert(
+    pub fn insert_match(
         &mut self,
         source: SchemaId,
         target: SchemaId,
     ) -> Result<Option<SchemaId>, MappingError> {
-        if let Some(old_mapping) = self.mapping.insert(source, target) {
+        if let Some(old_mapping) = self.matched.insert(source, target) {
             if old_mapping != target {
                 tracing::error!(
                     "Overwriting mapping for schema: {:?} -> {:?} (was {:?})",
@@ -66,6 +70,18 @@ impl SchemaRegistryMapping {
         }
 
         Ok(None)
+    }
+
+    pub fn insert_miss(&mut self, missed: FingerprintedSchema) {
+        self.missed.push(missed);
+    }
+
+    pub fn missed(&self) -> &[FingerprintedSchema] {
+        &self.missed
+    }
+
+    pub fn matched(&self) -> &BTreeMap<SchemaId, SchemaId> {
+        &self.matched
     }
 }
 
@@ -97,67 +113,61 @@ pub async fn map_schemas(
 
     let mut mapping = SchemaRegistryMapping::new();
 
-    let mut missed: usize = 0;
-
     // Beware, here be dragons!
     // We are iterating over the schemas of the source context,
     // and we are looking for the same schema in the target context.
     // We are using the schema fingerprint to match the schemas.
     // If the schema is not present, we will throw a warning.
     // If there are multiple candidates, we will use the on_duplicate_strategy strategy defined.
-    for source_schema_ref in &source_index {
-        let results = target_index.find_by_fingerprint(&source_schema_ref.fingerprint);
+    for source_schema in &source_index {
+        let results = target_index.find_by_fingerprint(&source_schema.fingerprint);
 
         match results {
-            Candidates::None => {
-                tracing::warn!("Missing mapping for schema: {:?}", source_schema_ref);
-                missed += 1;
+            Candidates::PerfectMatch(match_made_in_heaven) => {
+                mapping
+                    .insert_match(source_schema.id, match_made_in_heaven.id)
+                    .unwrap();
             }
-            Candidates::Multiple(refs) => {
-                let unique_ids = refs
+            Candidates::None => {
+                tracing::warn!("Missing mapping for schema: {:?}", source_schema);
+                mapping.insert_miss(source_schema.clone());
+            }
+            Candidates::Multiple(schemas) => {
+                let unique_ids = schemas
                     .iter()
-                    .map(|schema_ref| schema_ref.id)
+                    .map(|schema| schema.id)
                     .collect::<std::collections::HashSet<_>>();
 
                 // We got multiple candidates, but they all have the same id, so we are fine
                 if unique_ids.len() == 1 {
-                    let first_one_is_fine = refs.first().unwrap();
+                    let first_one_is_fine = schemas.first().unwrap();
                     mapping
-                        .insert(source_schema_ref.id, first_one_is_fine.id)
+                        .insert_match(source_schema.id, first_one_is_fine.id)
                         .unwrap();
 
                     // We got multiple candidates, but they have different ids
                 } else {
                     match opts.on_conflict.resolve(unique_ids) {
                         ConflictResolution::Resolved(resolved) => {
-                            mapping.insert(source_schema_ref.id, resolved).unwrap();
+                            mapping.insert_match(source_schema.id, resolved).unwrap();
                             tracing::debug!(
                                 "Resolved conflict for schema: {:?} -> {:?}",
-                                source_schema_ref,
+                                source_schema,
                                 resolved
                             );
                         }
                         ConflictResolution::Unresolved => {
                             tracing::warn!(
                                 "Unresolved conflict for schema: {:?} -> {:?}",
-                                source_schema_ref,
-                                refs
+                                source_schema,
+                                schemas
                             );
-                            missed += 1;
+                            mapping.insert_miss(source_schema.clone());
                         }
                     }
                 }
             }
-            Candidates::PerfectMatch(match_made_in_heaven) => {
-                mapping
-                    .insert(source_schema_ref.id, match_made_in_heaven.id)
-                    .unwrap();
-            }
         };
-    }
-
-    if missed > 0 {
-        eprintln!("Missed {} schemas.", missed);
     }
 
     Ok(mapping)

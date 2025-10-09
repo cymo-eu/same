@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::io::Write;
 use std::ops::Deref;
 use std::sync::Arc;
@@ -16,7 +17,7 @@ use same::context::{
 };
 use same::mapping::conflict::ConflictResolutionStrategy;
 use same::mapping::{map_schemas, MapSchemasOpts};
-use same::registry::{SchemaVersion, SubjectName};
+use same::registry::{SchemaId, SchemaReference, SchemaVersion, SubjectName};
 
 use crate::map::MapError::ContextNotFound;
 
@@ -97,6 +98,23 @@ impl Registries {
     }
 }
 
+#[derive(serde::Serialize, serde::Deserialize)]
+struct MappingOutput {
+    mapping: BTreeMap<SchemaId, SchemaId>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    missed: Vec<MissedSchema>,
+}
+
+#[derive(serde::Serialize, serde::Deserialize)]
+struct MissedSchema {
+    id: SchemaId,
+    subject: SubjectName,
+    version: SchemaVersion,
+    schema: String,
+    fingerprint: Option<String>,
+    references: Vec<SchemaReference>,
+}
+
 #[derive(Debug, thiserror::Error)]
 pub enum MapError {
     #[error("Context not found: {0}")]
@@ -143,7 +161,30 @@ impl MapCommand {
         .await?;
 
         step(3, Emoji("🖨️ ", ""), "Printing mapping...");
-        serde_yaml::to_writer(self.output(), &mapping)?;
+        serde_yaml::to_writer(
+            self.output(),
+            &MappingOutput {
+                mapping: mapping.matched().to_owned(),
+                missed: mapping
+                    .missed()
+                    .iter()
+                    .map(|schema| MissedSchema {
+                        id: schema.id.clone(),
+                        subject: schema.subject.clone(),
+                        version: schema.version.clone(),
+                        schema: schema.schema.clone(),
+                        fingerprint: schema.fingerprint.get_value_opt(),
+                        references: schema.references.clone(),
+                    })
+                    .collect(),
+            },
+        )?;
+
+        if mapping.missed().is_empty() {
+            writeln!(io::stderr(), "All schemas mapped successfully!")?;
+        } else {
+            writeln!(io::stderr(), "Some schemas failed to map.")?;
+        }
 
         step(4, Emoji("💫", ""), "Done");
 
