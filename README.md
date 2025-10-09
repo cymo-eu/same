@@ -58,7 +58,7 @@ registries:
   url: https://aaaa-1234.europe-west3.gcp.confluent.cloud
   username: <API KEY> # Optional
   password: <API SECRET> # Optional
-- name: sink
+- name: target
   url: https://bbbb-4567.europe-west3.gcp.confluent.cloud
   username: <API KEY> # Optional
   password: <API SECRET> # Optional
@@ -69,7 +69,7 @@ This can then be used as follows:
 ```sh
 $ same map \
   --from source \
-  --to sink \
+  --to target \
   -o mapping.yaml  \
   --registries /path/to/registries.yaml
 ```
@@ -80,9 +80,9 @@ with the current working directory mounted to `/usr/var/same`:
 ```sh
 $ docker run \
   -v .:/usr/var/same \
-  quay.io/kannika/same:0.2.0 map \
+  quay.io/kannika/same:0.4.0 map \
   --from=source \
-  --to=sink \
+  --to=target \
   --ignore-indexing-errors \
   --on-conflict=pick-first \
   -o /usr/var/same/mapping.yaml \
