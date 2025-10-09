@@ -1,13 +1,13 @@
 use crate::context::{Context, WalkSchemaSubjectsOpts};
+use crate::mapping::conflict::{ConflictResolution, ConflictResolutionStrategy};
 use crate::mapping::index::{Candidates, SchemaRegistryIndex, SchemaRegistryIndexError};
 use crate::mapping::MappingError::OverwritingMapping;
 use crate::registry::SchemaId;
 use std::collections::BTreeMap;
-use std::io;
-use std::io::Write;
 use std::sync::Arc;
 use tokio::task::JoinHandle;
 
+pub mod conflict;
 pub mod fingerprint;
 mod index;
 mod resolve;
@@ -27,7 +27,7 @@ pub enum MappingError {
     MissingMapping(SchemaId),
 
     #[error("Multiple mappings for schema: {0} -> {1:?}")]
-    MultipleMappings(SchemaId, Vec<SchemaId>),
+    Conflict(SchemaId, Vec<SchemaId>),
 
     #[error("Overwriting mapping for schema: {0} -> {1} (was {2})")]
     OverwritingMapping(SchemaId, SchemaId, SchemaId),
@@ -72,8 +72,13 @@ impl SchemaRegistryMapping {
 #[derive(Default)]
 pub struct MapSchemasOpts {
     pub ignore_indexing_errors: bool,
+    pub on_conflict: ConflictResolutionStrategy,
 }
 
+// Map schemas from source to target context.
+// The mapping is done by comparing the schema fingerprints.
+// If a schema is not present in the target context, it will be reported as missing.
+// If there are is a conflict (multiple candidate schemas), the on_conflict strategy will be used to resolve the conflict.
 pub async fn map_schemas(
     source: Arc<Context>,
     target: Arc<Context>,
@@ -99,7 +104,8 @@ pub async fn map_schemas(
     // and we are looking for the same schema in the target context.
     // We are using the schema fingerprint to match the schemas.
     // If the schema is not present, we will throw a warning.
-    source_index.iter().for_each(|source_schema_ref| {
+    // If there are multiple candidates, we will use the on_duplicate_strategy strategy defined.
+    for source_schema_ref in &source_index {
         let results = target_index.find_by_fingerprint(&source_schema_ref.fingerprint);
 
         match results {
@@ -122,12 +128,24 @@ pub async fn map_schemas(
 
                     // We got multiple candidates, but they have different ids
                 } else {
-                    tracing::warn!(
-                        "Multiple candidates for schema: {:?} -> {:?}",
-                        source_schema_ref,
-                        refs
-                    );
-                    missed += 1;
+                    match opts.on_conflict.resolve(unique_ids) {
+                        ConflictResolution::Resolved(resolved) => {
+                            mapping.insert(source_schema_ref.id, resolved).unwrap();
+                            tracing::debug!(
+                                "Resolved conflict for schema: {:?} -> {:?}",
+                                source_schema_ref,
+                                resolved
+                            );
+                        }
+                        ConflictResolution::Unresolved => {
+                            tracing::warn!(
+                                "Unresolved conflict for schema: {:?} -> {:?}",
+                                source_schema_ref,
+                                refs
+                            );
+                            missed += 1;
+                        }
+                    }
                 }
             }
             Candidates::PerfectMatch(match_made_in_heaven) => {
@@ -136,10 +154,10 @@ pub async fn map_schemas(
                     .unwrap();
             }
         };
-    });
+    }
 
     if missed > 0 {
-        writeln!(io::stderr(), "Missed {} schemas.", missed).unwrap();
+        eprintln!("Missed {} schemas.", missed);
     }
 
     Ok(mapping)

@@ -90,13 +90,13 @@ impl SchemaRegistryClient {
 
     /// Subject client
     #[must_use]
-    pub fn subject(&self) -> SubjectClient {
+    pub fn subject(&'_ self) -> SubjectClient<'_> {
         SubjectClient { client: self }
     }
 
     /// Schema client
     #[must_use]
-    pub fn schema(&self) -> SchemaClient {
+    pub fn schema<'a>(&self) -> SchemaClient<'_> {
         SchemaClient { client: self }
     }
 

@@ -41,11 +41,6 @@ impl SchemaRegistryIndex {
         }
     }
 
-    // TODO implement proper iterator
-    pub fn iter<'a>(&'a self) -> impl Iterator<Item = &SchemaRef> + 'a {
-        self.fp.iter().map(|(_, schema_ref)| schema_ref)
-    }
-
     pub fn index(
         &mut self,
         schema_subject: &Subject,
@@ -111,6 +106,29 @@ fn to_schema_ref(
         schema_type: subject.schema_type.clone(),
         fingerprint,
     })
+}
+
+pub struct SchemaRegistryIndexIter<'a> {
+    inner: multimap::Iter<'a, FingerPrint, SchemaRef>,
+}
+
+impl<'a> Iterator for SchemaRegistryIndexIter<'a> {
+    type Item = &'a SchemaRef;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.inner.next().map(|(_, schema_ref)| schema_ref)
+    }
+}
+
+impl<'a> IntoIterator for &'a SchemaRegistryIndex {
+    type Item = &'a SchemaRef;
+    type IntoIter = SchemaRegistryIndexIter<'a>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        SchemaRegistryIndexIter {
+            inner: self.fp.iter(),
+        }
+    }
 }
 
 #[cfg(test)]
