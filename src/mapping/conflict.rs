@@ -102,6 +102,7 @@ mod tests {
             assert_unresolved(ConflictResolutionStrategy::Strict, &[1, 2, 3]);
         }
 
+        #[test]
         fn test_no_candidates() {
             assert_unresolved(ConflictResolutionStrategy::Strict, &[]);
         }

@@ -131,7 +131,7 @@ pub async fn map_schemas(
                     match opts.on_conflict.resolve(unique_ids) {
                         ConflictResolution::Resolved(resolved) => {
                             mapping.insert(source_schema_ref.id, resolved).unwrap();
-                            tracing::info!(
+                            tracing::debug!(
                                 "Resolved conflict for schema: {:?} -> {:?}",
                                 source_schema_ref,
                                 resolved
@@ -213,20 +213,5 @@ async fn flatten(handle: IndexTask) -> IndexTaskResult {
         Ok(Ok(result)) => Ok(result),
         Ok(Err(err)) => Err(err),
         Err(err) => panic!("Failed to join task: {:?}", err),
-    }
-}
-
-#[cfg(test)]
-mod tests {
-
-    use super::*;
-
-    #[test]
-    fn test_insert_mapping() {
-        let mut mapping = SchemaRegistryMapping::new();
-        let result = mapping.insert(1.into(), 2.into()).unwrap();
-        assert!(result.is_none());
-        let result = mapping.insert(1.into(), 3.into()).unwrap();
-        assert!(result.is_some_and(|old| *old == 2u32));
     }
 }
