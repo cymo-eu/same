@@ -9,20 +9,30 @@ use crate::mapping::resolve::{Resolution, ResolveSchemaReferences};
 use crate::registry::{SchemaType, Subject};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum FingerPrint {
-    Avro(AvroFingerPrint),
+pub enum Fingerprint {
+    Avro(AvroFingerprint),
     Protobuf,
     Json,
 }
 
+impl Fingerprint {
+    pub fn get_value_opt(&self) -> Option<String> {
+        match self {
+            Fingerprint::Avro(fingerprint) => Some(fingerprint.to_string()),
+            Fingerprint::Protobuf => None,
+            Fingerprint::Json => None,
+        }
+    }
+}
+
 #[derive(Debug, thiserror::Error)]
-pub enum FingerPrintError {
+pub enum FingerprintError {
     #[error(transparent)]
     InvalidAvroSchema(#[from] apache_avro::Error),
 }
 
-pub trait ToFingerPrint {
-    fn to_fingerprint(&self) -> Result<FingerPrint, FingerPrintError>;
+pub trait ToFingerprint {
+    fn to_fingerprint(&self) -> Result<Fingerprint, FingerprintError>;
 }
 
 pub struct SubjectFingerPrintBuilder {
@@ -62,8 +72,8 @@ impl SubjectFingerPrintBuilder {
     }
 }
 
-impl ToFingerPrint for SubjectFingerPrintBuilder {
-    fn to_fingerprint(&self) -> Result<FingerPrint, FingerPrintError> {
+impl ToFingerprint for SubjectFingerPrintBuilder {
+    fn to_fingerprint(&self) -> Result<Fingerprint, FingerprintError> {
         match self.subject.schema_type {
             SchemaType::Avro => {
                 let mut schemas = Vec::<&str>::new();
@@ -78,37 +88,37 @@ impl ToFingerPrint for SubjectFingerPrintBuilder {
                 let input = &schemas[..];
 
                 let schema = AvroSchema::parse_list(input)
-                    .map_err(|e| FingerPrintError::InvalidAvroSchema(e))?;
+                    .map_err(|e| FingerprintError::InvalidAvroSchema(e))?;
 
                 // Get the first schema in the list
                 let first = schema.first().unwrap();
 
-                let fingerprint = AvroFingerPrint::from_schema(&first);
+                let fingerprint = AvroFingerprint::from_schema(&first);
 
-                Ok(FingerPrint::Avro(fingerprint))
+                Ok(Fingerprint::Avro(fingerprint))
             }
-            SchemaType::Json => Ok(FingerPrint::Json),
-            SchemaType::Protobuf => Ok(FingerPrint::Protobuf),
+            SchemaType::Json => Ok(Fingerprint::Json),
+            SchemaType::Protobuf => Ok(Fingerprint::Protobuf),
         }
     }
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
-pub struct AvroFingerPrint {
+pub struct AvroFingerprint {
     pub bytes: Vec<u8>,
 }
 
-impl AvroFingerPrint {
-    pub fn from_schema(schema: &AvroSchema) -> AvroFingerPrint {
+impl AvroFingerprint {
+    pub fn from_schema(schema: &AvroSchema) -> AvroFingerprint {
         let fingerprint = schema.fingerprint::<Rabin>();
 
-        AvroFingerPrint {
+        AvroFingerprint {
             bytes: fingerprint.bytes,
         }
     }
 }
 
-impl Display for AvroFingerPrint {
+impl Display for AvroFingerprint {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let bytes = self.deref();
         for byte in bytes {
@@ -118,7 +128,7 @@ impl Display for AvroFingerPrint {
     }
 }
 
-impl Deref for AvroFingerPrint {
+impl Deref for AvroFingerprint {
     type Target = [u8];
 
     fn deref(&self) -> &Self::Target {
@@ -126,7 +136,7 @@ impl Deref for AvroFingerPrint {
     }
 }
 
-impl Debug for AvroFingerPrint {
+impl Debug for AvroFingerprint {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let bytes = self.deref();
         for byte in bytes {
@@ -138,7 +148,7 @@ impl Debug for AvroFingerPrint {
 
 #[cfg(test)]
 mod tests {
-    use crate::mapping::fingerprint::AvroFingerPrint;
+    use crate::mapping::fingerprint::AvroFingerprint;
     use crate::AvroSchema;
 
     #[test]
@@ -159,7 +169,7 @@ mod tests {
 
         let schema = AvroSchema::parse_str(schema).unwrap();
 
-        let fingerprint = AvroFingerPrint::from_schema(&schema);
+        let fingerprint = AvroFingerprint::from_schema(&schema);
 
         assert_eq!(format!("{}", fingerprint), "6c286d2ee6d243cd");
     }
@@ -201,8 +211,8 @@ mod tests {
         .unwrap();
 
         assert_eq!(
-            AvroFingerPrint::from_schema(&one),
-            AvroFingerPrint::from_schema(&two)
+            AvroFingerprint::from_schema(&one),
+            AvroFingerprint::from_schema(&two)
         );
     }
 
@@ -243,8 +253,8 @@ mod tests {
         .unwrap();
 
         assert_ne!(
-            AvroFingerPrint::from_schema(&one),
-            AvroFingerPrint::from_schema(&two)
+            AvroFingerprint::from_schema(&one),
+            AvroFingerprint::from_schema(&two)
         );
     }
 
@@ -284,8 +294,8 @@ mod tests {
         .unwrap();
 
         assert_eq!(
-            AvroFingerPrint::from_schema(&one),
-            AvroFingerPrint::from_schema(&two)
+            AvroFingerprint::from_schema(&one),
+            AvroFingerprint::from_schema(&two)
         );
     }
 }
