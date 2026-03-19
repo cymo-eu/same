@@ -114,26 +114,16 @@ impl FingerprintedSchema {
     }
 }
 
-pub struct SchemaRegistryIndexIter<'a> {
-    inner: multimap::Iter<'a, Fingerprint, FingerprintedSchema>,
-}
-
-impl<'a> Iterator for SchemaRegistryIndexIter<'a> {
-    type Item = &'a FingerprintedSchema;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        self.inner.next().map(|(_, schema_ref)| schema_ref)
-    }
-}
-
 impl<'a> IntoIterator for &'a SchemaRegistryIndex {
     type Item = &'a FingerprintedSchema;
-    type IntoIter = SchemaRegistryIndexIter<'a>;
+    type IntoIter = std::vec::IntoIter<&'a FingerprintedSchema>;
 
     fn into_iter(self) -> Self::IntoIter {
-        SchemaRegistryIndexIter {
-            inner: self.fp.iter(),
-        }
+        self.fp
+            .flat_iter()
+            .map(|(_, schema)| schema)
+            .collect::<Vec<_>>()
+            .into_iter()
     }
 }
 
@@ -251,6 +241,37 @@ mod tests {
         let results = index.find_by_fingerprint(&fingerprint);
 
         assert_eq!(results, Candidates::None);
+    }
+
+    /// CYM-1200: When multiple schema versions share the same fingerprint (e.g. structurally
+    /// identical schemas with different IDs), iterating the index must yield ALL of them.
+    #[test]
+    fn iterate_should_yield_all_versions_with_same_fingerprint() {
+        let mut index = SchemaRegistryIndex::new();
+        let resolver = MockResolver::new();
+
+        // Index 4 versions of the same schema — same structure, different IDs
+        for (version, id) in [("1", "101"), ("2", "102"), ("3", "103"), ("4", "104")] {
+            let subject = Subject {
+                subject: "business-agreement-value".parse().unwrap(),
+                version: version.parse::<SchemaVersion>().unwrap(),
+                id: id.parse::<SchemaId>().unwrap(),
+                schema_type: SchemaType::Avro,
+                schema: avocado_schema().to_string(),
+                references: vec![],
+            };
+            index.index(&subject, &resolver).unwrap();
+        }
+
+        let iterated_ids: std::collections::HashSet<SchemaId> =
+            index.into_iter().map(|s| s.id).collect();
+
+        assert_eq!(
+            iterated_ids.len(),
+            4,
+            "Expected all 4 versions to be iterated, but got: {:?}",
+            iterated_ids
+        );
     }
 
     fn avrocado_subject() -> Subject {

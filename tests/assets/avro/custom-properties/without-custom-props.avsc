@@ -1,0 +1,71 @@
+{
+	"type": "record",
+	"name": "SensorReading",
+	"namespace": "io.kannika.test",
+	"doc": "A sensor reading event",
+	"fields": [
+		{
+			"name": "sensorId",
+			"type": "string",
+			"doc": "Unique identifier of the sensor"
+		},
+		{
+			"name": "timestamp",
+			"type": {
+				"type": "long",
+				"logicalType": "timestamp-millis"
+			},
+			"doc": "Timestamp of the reading"
+		},
+		{
+			"name": "value",
+			"type": "double",
+			"doc": "The measured value"
+		},
+		{
+			"name": "unit",
+			"type": [
+				"null",
+				"string"
+			],
+			"default": null
+		},
+		{
+			"name": "metadata",
+			"type": [
+				"null",
+				{
+					"type": "record",
+					"name": "ReadingMetadata",
+					"fields": [
+						{
+							"name": "source",
+							"type": [
+								"null",
+								"string"
+							],
+							"default": null
+						},
+						{
+							"name": "quality",
+							"type": [
+								"null",
+								{
+									"type": "enum",
+									"name": "QualityLevel",
+									"symbols": [
+										"HIGH",
+										"MEDIUM",
+										"LOW"
+									]
+								}
+							],
+							"default": null
+						}
+					]
+				}
+			],
+			"default": null
+		}
+	]
+}

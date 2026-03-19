@@ -259,6 +259,48 @@ mod tests {
     }
 
     #[test]
+    fn custom_root_properties_should_be_ignored() {
+        let without_custom = AvroSchema::parse_str(
+            r#"
+        {
+            "type": "record",
+            "name": "SensorReading",
+            "namespace": "io.kannika.test",
+            "fields": [
+                { "name": "sensorId", "type": "string" },
+                { "name": "value", "type": "double" }
+            ]
+        }
+        "#,
+        )
+        .unwrap();
+
+        let with_custom = AvroSchema::parse_str(
+            r#"
+        {
+            "type": "record",
+            "name": "SensorReading",
+            "namespace": "io.kannika.test",
+            "fields": [
+                { "name": "sensorId", "type": "string" },
+                { "name": "value", "type": "double" }
+            ],
+            "dataOwnerEmail": "sensors@example.com",
+            "dataOwner": "IoT Platform",
+            "sourceApplication": "SensorHub"
+        }
+        "#,
+        )
+        .unwrap();
+
+        assert_eq!(
+            AvroFingerprint::from_schema(&without_custom),
+            AvroFingerprint::from_schema(&with_custom),
+            "Custom root-level properties should not affect the Rabin fingerprint"
+        );
+    }
+
+    #[test]
     fn docs_should_be_ignored() {
         let one = AvroSchema::parse_str(r#"
         {
