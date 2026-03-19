@@ -1,5 +1,5 @@
 ARG RUST_VERSION=1.94
-ARG ALPINE_VERSION=3.20
+ARG ALPINE_VERSION=3.23
 
 FROM rust:$RUST_VERSION-alpine$ALPINE_VERSION AS builder
 RUN apk add --no-cache bash build-base mold musl-dev openssl-dev yq
