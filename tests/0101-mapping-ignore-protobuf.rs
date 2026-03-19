@@ -6,18 +6,10 @@ use std::sync::Arc;
 mod common;
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn test_map_schemas() -> anyhow::Result<()> {
+async fn test_map_schemas_ignores_protobuf() -> anyhow::Result<()> {
     common::setup_logs();
 
-    let env = TestEnv::new_remote("http://localhost:8081")?;
-
-    env.delete_all_subjects().await?;
-    let _ = env
-        .register_avro_schema("user", include_str!("assets/avro/user/v1.avsc"))
-        .await?;
-    let _ = env
-        .register_avro_schema("user", include_str!("assets/avro/user/v2.avsc"))
-        .await?;
+    let env = TestEnv::new_containerized_cluster().await?;
 
     let _ = env
         .register_protobuf_schema("image", include_str!("assets/proto/image/v1.proto"))
@@ -36,8 +28,8 @@ async fn test_map_schemas() -> anyhow::Result<()> {
 
     let mapping = map_schemas(Arc::new(from), Arc::new(to), MapSchemasOpts::default()).await?;
 
-    assert!(mapping.missed().is_empty(), "expected no missed schemas");
-    assert_eq!(mapping.matched().len(), 4, "expected 4 matched schemas");
+    assert!(mapping.matched().is_empty(), "protobuf schemas should not be matched");
+    assert!(mapping.missed().is_empty(), "protobuf schemas are not indexed");
 
     Ok(())
 }
