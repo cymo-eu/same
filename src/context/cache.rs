@@ -119,7 +119,7 @@ impl Context {
 
                     let file = std::fs::File::create(schema_file).map_err(ContextError::IoError)?;
 
-                    serde_yaml::to_writer(file, &schema)
+                    serde_yml::to_writer(file, &schema)
                         .map_err(ContextError::SerializationError)?;
                 } else {
                     tracing::debug!(
@@ -160,7 +160,7 @@ impl Context {
                     if path.is_file() {
                         let file = fs::File::open(&path)?;
 
-                        match serde_yaml::from_reader(&file) {
+                        match serde_yml::from_reader(&file) {
                             Ok(subject) => {
                                 f(subject).map_err(|e| ContextError::WalkError(e.to_string()))?;
                             }
@@ -194,7 +194,7 @@ impl Context {
             let file = fs::File::open(schema_file)?;
 
             let subject: Subject =
-                serde_yaml::from_reader(file).map_err(ContextError::DeserializationError)?;
+                serde_yml::from_reader(file).map_err(ContextError::DeserializationError)?;
 
             Ok(Some(subject))
         } else {

@@ -40,7 +40,8 @@ async fn logical_type_uuid() -> anyhow::Result<()> {
 
     let mapping = map_schemas(Arc::new(from), Arc::new(to), MapSchemasOpts::default()).await?;
 
-    println!("{}", serde_yaml::to_string(&mapping)?);
+    assert!(mapping.missed().is_empty(), "expected no missed schemas");
+    assert_eq!(mapping.matched().len(), 3, "expected 3 matched schemas");
 
     Ok(())
 }

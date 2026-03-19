@@ -67,7 +67,7 @@ impl ContextRepository for LocalContextRepository {
             .open(&self.cfg_file)
             .map_err(|err| ContextError::IoError(err))?;
 
-        serde_yaml::to_writer(&mut file, &cfg)
+        serde_yml::to_writer(&mut file, &cfg)
             .map_err(|err| ContextError::SerializationError(err))?;
 
         Ok(())
@@ -116,7 +116,7 @@ impl Config {
 
         if file_length == 0 {
             let default_config = Config::new();
-            serde_yaml::to_writer(&mut file, &default_config)
+            serde_yml::to_writer(&mut file, &default_config)
                 .map_err(|err| ContextError::SerializationError(err))?;
             return Ok(default_config);
         }
@@ -129,7 +129,7 @@ impl Config {
         R: io::Read,
     {
         let value: Config =
-            serde_yaml::from_reader(rdr).map_err(|err| ContextError::DeserializationError(err))?;
+            serde_yml::from_reader(rdr).map_err(|err| ContextError::DeserializationError(err))?;
         Ok(value)
     }
 
@@ -156,23 +156,23 @@ mod tests {
 
     use super::*;
 
-    fn mk_temp_repo() -> LocalContextRepository {
+    fn mk_temp_repo() -> (LocalContextRepository, tempfile::TempDir) {
         let mut repo = LocalContextRepository::get();
-        let tempdir = tempfile::tempdir().unwrap().into_path();
-        repo.set_cfg_file(tempdir.join(CFG_FILE));
-        repo
+        let tempdir = tempfile::tempdir().unwrap();
+        repo.set_cfg_file(tempdir.path().join(CFG_FILE));
+        (repo, tempdir)
     }
 
     #[test]
     fn find_context_returns_none_when_context_not_found() {
-        let repo = mk_temp_repo();
+        let (repo, _tempdir) = mk_temp_repo();
         let result = repo.find_context(&"nonexistent".into());
         assert!(result.unwrap().is_none());
     }
 
     #[test]
     fn find_context_returns_context_when_found() {
-        let repo = mk_temp_repo();
+        let (repo, _tempdir) = mk_temp_repo();
         let context = Context::new("data-land".into(), data_land_registry());
         repo.set_context(context.clone()).unwrap();
         let result = repo.find_context(&"data-land".into());
@@ -181,7 +181,7 @@ mod tests {
 
     #[test]
     fn set_context_adds_new_context() {
-        let repo = mk_temp_repo();
+        let (repo, _tempdir) = mk_temp_repo();
         let context = Context::new("data-land".into(), data_land_registry());
         repo.set_context(context.clone()).unwrap();
         let result = repo.find_context(&"data-land".into());
@@ -190,7 +190,7 @@ mod tests {
 
     #[test]
     fn set_context_updates_existing_context() {
-        let repo = mk_temp_repo();
+        let (repo, _tempdir) = mk_temp_repo();
 
         repo.set_context(Context::new("data-land".into(), data_land_registry()))
             .unwrap();
@@ -207,7 +207,7 @@ mod tests {
 
     #[test]
     fn set_context_does_not_update_other_contexts() {
-        let repo = mk_temp_repo();
+        let (repo, _tempdir) = mk_temp_repo();
         let context = Context::new("data-land".into(), data_land_registry());
         repo.set_context(context.clone()).unwrap();
         let other_context = Context::new("chocolate-factory".into(), chocolate_factory_registry());
