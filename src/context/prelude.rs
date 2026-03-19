@@ -13,6 +13,25 @@ pub struct Context {
 
     /// The configuration for the schema registry
     pub registry: SchemaRegistryConfig,
+
+    /// Override the cache directory. When None, uses the platform default.
+    #[serde(skip)]
+    pub(crate) cache_dir_override: Option<std::path::PathBuf>,
+}
+
+impl Context {
+    pub fn new(name: ContextName, registry: SchemaRegistryConfig) -> Self {
+        Self {
+            name,
+            registry,
+            cache_dir_override: None,
+        }
+    }
+
+    pub fn with_cache_dir(mut self, cache_dir: std::path::PathBuf) -> Self {
+        self.cache_dir_override = Some(cache_dir);
+        self
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]

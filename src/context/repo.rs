@@ -173,10 +173,7 @@ mod tests {
     #[test]
     fn find_context_returns_context_when_found() {
         let repo = mk_temp_repo();
-        let context = Context {
-            name: "data-land".into(),
-            registry: data_land_registry(),
-        };
+        let context = Context::new("data-land".into(), data_land_registry());
         repo.set_context(context.clone()).unwrap();
         let result = repo.find_context(&"data-land".into());
         assert_eq!(result.unwrap(), Some(context));
@@ -185,10 +182,7 @@ mod tests {
     #[test]
     fn set_context_adds_new_context() {
         let repo = mk_temp_repo();
-        let context = Context {
-            name: "data-land".into(),
-            registry: data_land_registry(),
-        };
+        let context = Context::new("data-land".into(), data_land_registry());
         repo.set_context(context.clone()).unwrap();
         let result = repo.find_context(&"data-land".into());
         assert_eq!(result.unwrap(), Some(context));
@@ -198,40 +192,25 @@ mod tests {
     fn set_context_updates_existing_context() {
         let repo = mk_temp_repo();
 
-        repo.set_context(Context {
-            name: "data-land".into(),
-            registry: data_land_registry(),
-        })
-        .unwrap();
+        repo.set_context(Context::new("data-land".into(), data_land_registry()))
+            .unwrap();
 
-        repo.set_context(Context {
-            name: "data-land".into(),
-            registry: chocolate_factory_registry(),
-        })
-        .unwrap();
+        repo.set_context(Context::new("data-land".into(), chocolate_factory_registry()))
+            .unwrap();
 
         let result = repo.find_context(&"data-land".into());
         assert_eq!(
             result.unwrap(),
-            Some(Context {
-                name: "data-land".into(),
-                registry: chocolate_factory_registry(),
-            })
+            Some(Context::new("data-land".into(), chocolate_factory_registry()))
         );
     }
 
     #[test]
     fn set_context_does_not_update_other_contexts() {
         let repo = mk_temp_repo();
-        let context = Context {
-            name: "data-land".into(),
-            registry: data_land_registry(),
-        };
+        let context = Context::new("data-land".into(), data_land_registry());
         repo.set_context(context.clone()).unwrap();
-        let other_context = Context {
-            name: "chocolate-factory".into(),
-            registry: chocolate_factory_registry(),
-        };
+        let other_context = Context::new("chocolate-factory".into(), chocolate_factory_registry());
         repo.set_context(other_context.clone()).unwrap();
         let result = repo.find_context(&"data-land".into());
         assert_eq!(result.unwrap(), Some(context));

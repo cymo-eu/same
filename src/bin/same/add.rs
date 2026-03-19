@@ -78,10 +78,10 @@ impl AddCommand {
         };
 
         // Store context
-        let context = same::context::Context {
-            name: same::context::ContextName(name.to_owned()),
-            registry: same::context::SchemaRegistryConfig { url, auth },
-        };
+        let context = same::context::Context::new(
+            same::context::ContextName(name.to_owned()),
+            same::context::SchemaRegistryConfig { url, auth },
+        );
 
         let repo = LocalContextRepository::get();
         repo.set_context(context)?;
