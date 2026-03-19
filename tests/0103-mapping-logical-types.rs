@@ -11,9 +11,7 @@ mod common;
 async fn logical_type_uuid() -> anyhow::Result<()> {
     common::setup_logs();
 
-    // let env = TestEnv::new_containerized_cluster()?;
-    let env = TestEnv::new_remote("http://localhost:8081")?;
-    env.delete_all_subjects().await?;
+    let env = TestEnv::new_containerized_cluster().await?;
     env.register_avro_schema(
         "uuid",
         include_str!("assets/avro/logicaltypes/uuid/v1.avsc"),

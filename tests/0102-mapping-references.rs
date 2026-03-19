@@ -9,7 +9,7 @@ mod common;
 async fn test_references() -> anyhow::Result<()> {
     common::setup_logs();
 
-    let env = TestEnv::new_remote("http://localhost:8081")?;
+    let env = TestEnv::new_containerized_cluster().await?;
     let customer_subject = env
         .register_avro_schema("customer", include_str!("assets/avro/ref/customer.avsc"))
         .await?;
