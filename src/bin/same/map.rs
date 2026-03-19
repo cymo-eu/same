@@ -340,3 +340,72 @@ async fn flatten(handle: DownloadTask) -> DownloadTaskResult {
         Err(err) => panic!("Failed to download schemas: {:?}", err),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::num::NonZeroU32;
+
+    #[test]
+    fn mapping_output_yaml_without_missed() {
+        let mut mapping = BTreeMap::new();
+        mapping.insert(SchemaId::from(1u32), SchemaId::from(10u32));
+        mapping.insert(SchemaId::from(2u32), SchemaId::from(20u32));
+
+        let output = MappingOutput {
+            mapping,
+            missed: vec![],
+        };
+
+        let yaml = serde_yml::to_string(&output).unwrap();
+        assert_eq!(yaml, "mapping:\n  1: 10\n  2: 20\n");
+    }
+
+    #[test]
+    fn mapping_output_yaml_with_missed() {
+        let output = MappingOutput {
+            mapping: BTreeMap::new(),
+            missed: vec![MissedSchema {
+                id: SchemaId::from(42u32),
+                subject: "my-subject".parse().unwrap(),
+                version: SchemaVersion::Version(NonZeroU32::new(3).unwrap()),
+                schema: r#"{"type":"string"}"#.to_string(),
+                fingerprint: Some("abc123".to_string()),
+                references: vec![SchemaReference {
+                    name: "ref1".to_string(),
+                    subject: "ref-subject".to_string(),
+                    version: SchemaVersion::Version(NonZeroU32::new(1).unwrap()),
+                }],
+            }],
+        };
+
+        let yaml = serde_yml::to_string(&output).unwrap();
+        assert_eq!(
+            yaml,
+            "\
+mapping: {}
+missed:
+- id: 42
+  subject: my-subject
+  version: 3
+  schema: '{\"type\":\"string\"}'
+  fingerprint: abc123
+  references:
+  - name: ref1
+    subject: ref-subject
+    version: 1
+"
+        );
+    }
+
+    #[test]
+    fn mapping_output_skips_empty_missed() {
+        let output = MappingOutput {
+            mapping: BTreeMap::new(),
+            missed: vec![],
+        };
+
+        let yaml = serde_yml::to_string(&output).unwrap();
+        assert!(!yaml.contains("missed"), "empty missed should be omitted from YAML");
+    }
+}
