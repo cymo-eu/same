@@ -78,13 +78,13 @@ impl TryFrom<RegistryConfig> for Context {
             Authentication::None
         };
 
-        Ok(Context {
-            name: config.name.parse().unwrap(),
-            registry: SchemaRegistryConfig {
+        Ok(Context::new(
+            config.name.parse().unwrap(),
+            SchemaRegistryConfig {
                 url: config.url,
                 auth,
             },
-        })
+        ))
     }
 }
 

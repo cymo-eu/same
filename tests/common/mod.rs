@@ -16,24 +16,25 @@ pub mod registries;
 pub struct TestEnv {
     pub registry: TestSchemaRegistry,
     pub client: SchemaRegistryClient,
+    cache_dir: tempfile::TempDir,
 }
 
 #[allow(unused)]
 impl TestEnv {
-    pub fn new_containerized_cluster() -> anyhow::Result<Self> {
-        futures::executor::block_on(async {
-            let container = ContainerizedSchemaRegistry::start().await?;
-            let client = SchemaRegistryClient::new(&container.get_schema_registry_url())?;
-            let registry = TestSchemaRegistry::Containerized(container);
-            Ok(Self { registry, client })
-        })
+    pub async fn new_containerized_cluster() -> anyhow::Result<Self> {
+        let container = ContainerizedSchemaRegistry::start().await?;
+        let client = SchemaRegistryClient::new(&container.get_schema_registry_url())?;
+        let registry = TestSchemaRegistry::Containerized(container);
+        let cache_dir = tempfile::tempdir()?;
+        Ok(Self { registry, client, cache_dir })
     }
 
     pub fn new_remote(url: &str) -> anyhow::Result<Self> {
         let remote = RemoteSchemaRegistry::new(url);
         let registry = TestSchemaRegistry::Remote(remote);
         let client = SchemaRegistryClient::new(url)?;
-        Ok(Self { registry, client })
+        let cache_dir = tempfile::tempdir()?;
+        Ok(Self { registry, client, cache_dir })
     }
 
     pub async fn delete_all_subjects(&self) -> anyhow::Result<()> {
@@ -162,13 +163,14 @@ impl TestEnv {
     }
 
     pub fn mk_context(&self, name: &str, auth: Authentication) -> anyhow::Result<Context> {
-        Ok(Context {
-            name: name.parse()?,
-            registry: SchemaRegistryConfig {
+        Ok(Context::new(
+            name.parse()?,
+            SchemaRegistryConfig {
                 url: self.get_schema_registry_url(),
                 auth,
             },
-        })
+        )
+        .with_cache_dir(self.cache_dir.path().to_path_buf()))
     }
 
     fn get_schema_registry_url(&self) -> String {

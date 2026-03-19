@@ -40,13 +40,20 @@ pub trait DownloadProbe {
 impl Context {
     /// Returns the path to the cache directory for this context.
     pub fn cache_dir(&self) -> Result<PathBuf, ContextError> {
-        let dir = dirs::cache_dir()
-            .map(|mut path| {
-                path.push("io.kannika.same");
+        let dir = match &self.cache_dir_override {
+            Some(base) => {
+                let mut path = base.clone();
                 path.push(&self.name.deref());
                 path
-            })
-            .ok_or(ContextError::CacheDirCreationFailed)?;
+            }
+            None => dirs::cache_dir()
+                .map(|mut path| {
+                    path.push("io.kannika.same");
+                    path.push(&self.name.deref());
+                    path
+                })
+                .ok_or(ContextError::CacheDirCreationFailed)?,
+        };
 
         mkdir_p(&dir)
     }
