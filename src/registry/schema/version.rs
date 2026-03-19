@@ -134,28 +134,28 @@ mod tests {
     #[test]
     fn should_serde_version() {
         let json = "42\n";
-        let version = serde_yaml::from_str::<SchemaVersion>(json).unwrap();
+        let version = serde_yml::from_str::<SchemaVersion>(json).unwrap();
         assert_eq!(
             version,
             SchemaVersion::Version(NonZeroU32::new(42).unwrap())
         );
-        let s = serde_yaml::to_string(&version).unwrap();
+        let s = serde_yml::to_string(&version).unwrap();
         assert_eq!(s, json);
     }
 
     #[test]
     fn should_serde_latest_version() {
         let json = "latest\n";
-        let version = serde_yaml::from_str::<SchemaVersion>(json).unwrap();
+        let version = serde_yml::from_str::<SchemaVersion>(json).unwrap();
         assert_eq!(version, SchemaVersion::Latest);
-        let s = serde_yaml::to_string(&version).unwrap();
+        let s = serde_yml::to_string(&version).unwrap();
         assert_eq!(s, json);
     }
 
     #[test]
     fn should_serde_latest_version_minus_one() {
         let json = "-1";
-        let version = serde_yaml::from_str::<SchemaVersion>(json).unwrap();
+        let version = serde_yml::from_str::<SchemaVersion>(json).unwrap();
         assert_eq!(version, SchemaVersion::Latest);
     }
 }

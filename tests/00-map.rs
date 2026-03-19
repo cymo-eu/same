@@ -36,7 +36,8 @@ async fn test_map_schemas() -> anyhow::Result<()> {
 
     let mapping = map_schemas(Arc::new(from), Arc::new(to), MapSchemasOpts::default()).await?;
 
-    println!("{}", serde_yaml::to_string(&mapping)?);
+    assert!(mapping.missed().is_empty(), "expected no missed schemas");
+    assert_eq!(mapping.matched().len(), 4, "expected 4 matched schemas");
 
     Ok(())
 }

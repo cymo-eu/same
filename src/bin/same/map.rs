@@ -127,7 +127,7 @@ pub enum MapError {
     ContextError(#[from] ContextError),
 
     #[error("Serde error: {0}")]
-    SerdeError(#[from] serde_yaml::Error),
+    SerdeError(#[from] serde_yml::Error),
 }
 
 impl MapCommand {
@@ -161,7 +161,7 @@ impl MapCommand {
         .await?;
 
         step(3, Emoji("🖨️ ", ""), "Printing mapping...");
-        serde_yaml::to_writer(
+        serde_yml::to_writer(
             self.output(),
             &MappingOutput {
                 mapping: mapping.matched().to_owned(),
@@ -195,7 +195,7 @@ impl MapCommand {
         match self.registries {
             Some(ref path) => {
                 let file = std::fs::File::open(path)?;
-                let registries: Registries = serde_yaml::from_reader(file)?;
+                let registries: Registries = serde_yml::from_reader(file)?;
                 let from = registries.get(&self.from)?;
                 let to = registries.get(&self.to)?;
                 Ok((Arc::new(from.try_into()?), Arc::new(to.try_into()?)))
