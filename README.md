@@ -1,5 +1,8 @@
 # 🛰️ Schema Automated Mapping Engine
 
+> [!NOTE]
+> This project has moved to [kannika-io/same](https://github.com/kannika-io/same).
+
 This repository contains the source code for the Schema Automated Mapping Engine (SAME).
 SAME is a tool for automatically generating mappings between schema registries.
 
